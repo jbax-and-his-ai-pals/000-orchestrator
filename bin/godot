@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Orchestrator shim so verify commands can call plain `godot` (headless-capable console build).
+# Put the path to your Godot console executable in bin/godot.local (untracked), or set GODOT_BIN.
+here="$(cd "$(dirname "$0")" && pwd)"
+bin="${GODOT_BIN:-$(head -n1 "$here/godot.local" 2>/dev/null)}"
+[ -n "$bin" ] || { echo "godot shim: set GODOT_BIN or create bin/godot.local" >&2; exit 127; }
+exec "$bin" "$@"

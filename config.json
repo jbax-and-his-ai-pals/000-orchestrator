@@ -1,0 +1,35 @@
+{
+  "dashboard": {
+    "host": "127.0.0.1",
+    "port": 8420,
+    "poll_seconds": 4
+  },
+  "metrics": [
+    "stack",
+    "playability_score",
+    "visual_maturity",
+    "complexity",
+    "last_scanned_at"
+  ],
+  "webhooks": {
+    "enabled": false,
+    "urls": [],
+    "events": [
+      "hld_review",
+      "lld_review",
+      "playtest"
+    ],
+    "_comment": "POSTs JSON {event, initiative, project, title, stage, url} when a card enters one of `events`."
+  },
+  "models": {
+    "scout": "ollama/gemma4:12b",
+    "architect": "anthropic/claude-sonnet-5-5",
+    "architect_high": "anthropic/claude-opus-5-5",
+    "planner": "openai/gpt-6.1-sol",
+    "reviewer": "google/gemini-3.6-flash",
+    "reviewer_fallbacks": [
+      "google/gemini-3.5-flash",
+      "google/gemini-3-flash-preview"
+    ]
+  }
+}

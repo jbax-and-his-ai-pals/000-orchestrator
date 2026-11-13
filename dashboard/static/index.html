@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portfolio Orchestrator</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="dot" id="live-dot" title="live"></span> Portfolio Orchestrator</div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="pulse">Portfolio Pulse</button>
+      <button class="tab" data-view="triage">Triage Board <span class="count" id="review-count"></span></button>
+      <button class="tab" data-view="activity">Activity</button>
+      <button class="tab" data-view="taste">Taste Profile</button>
+    </nav>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <div id="spotlight-banner" class="spot-banner" hidden></div>
+  <main>
+    <section id="view-pulse" class="view active">
+      <div class="toolbar">
+        <input id="filter" type="search" placeholder="Filter projects…" aria-label="Filter projects">
+        <label class="chk"><input type="checkbox" id="show-skip"> show skipped</label>
+      </div>
+      <div id="pulse" class="pulse-grid"></div>
+    </section>
+
+    <section id="view-triage" class="view">
+      <div class="board" id="board"></div>
+      <details class="closed"><summary id="closed-summary">Closed</summary><div id="closed" class="closed-list"></div></details>
+    </section>
+
+    <section id="view-activity" class="view"><ol id="activity" class="activity"></ol></section>
+    <section id="view-taste" class="view"><article id="taste" class="md"></article></section>
+  </main>
+
+  <div id="drawer" class="drawer" hidden>
+    <div class="drawer-backdrop" data-close></div>
+    <aside class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+      <header class="drawer-head">
+        <div>
+          <div class="eyebrow" id="drawer-eyebrow"></div>
+          <h2 id="drawer-title"></h2>
+        </div>
+        <button class="icon-btn" data-close aria-label="Close">✕</button>
+      </header>
+      <div id="drawer-controls"></div>
+      <nav class="subtabs" id="drawer-tabs"></nav>
+      <div class="drawer-body" id="drawer-body"></div>
+    </aside>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

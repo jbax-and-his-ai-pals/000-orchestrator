@@ -1,0 +1,20 @@
+# Runtime state: local to this machine, never published
+state/
+dossiers/
+designs/
+worktrees/
+logs/
+archive/
+research/
+
+# OpenClaw agent workspaces (contain their own .git); the tracked copy is playbooks/
+agents/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.tmp
+
+# machine-specific tool paths
+bin/*.local

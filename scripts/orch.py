@@ -82,6 +82,7 @@ NOTIFY_STAGES = {"hld_review", "lld_review", "playtest"}
 
 # Curated first-pass facts. The scout refines them; the dashboard edits priority/complexity.
 SEED = {
+    SELF_REPO: ("Python orchestrator (SQLite + FastAPI dashboard + OpenClaw agents)", "high"),
     "001-tactical-shadowcaster": ("Python / pygame", "standard"),
     "002-wasteball": ("Godot 4.6 / GDScript", "standard"),
     "003-big-city": ("Godot 4.6 / GDScript", "standard"),
@@ -346,7 +347,13 @@ def export_json() -> dict:
 # ---------------------------------------------------------------- projects
 
 def project_dirs() -> list[Path]:
-    return sorted(p for p in ROOT.iterdir() if p.is_dir() and re.match(r"^\d{3}-", p.name) and p.name != SELF_REPO)
+    """Game repos in the container root, plus the orchestrator itself (registered as 000-orchestrator)."""
+    games = [p for p in ROOT.iterdir() if p.is_dir() and re.match(r"^\d{3}-", p.name) and p.name != SELF_REPO]
+    return sorted(games + ([ORCH] if (ORCH / ".git").exists() else []), key=lambda p: project_name(p))
+
+
+def project_name(p: Path) -> str:
+    return SELF_REPO if p.resolve() == ORCH.resolve() else p.name
 
 
 def default_branch(repo: Path) -> str | None:
@@ -366,17 +373,18 @@ def seed_projects(actor: str = "orch") -> int:
             is_git = (p / ".git").exists()
             url = git(p, "remote", "get-url", "origin") if is_git else ""
             url = re.sub(r"\.git$", "", url) or None
-            stack, cx = SEED.get(p.name, (None, "standard"))
-            exists = con.execute("SELECT 1 FROM projects WHERE repo_name=?", (p.name,)).fetchone()
+            name = project_name(p)
+            stack, cx = SEED.get(name, (None, "standard"))
+            exists = con.execute("SELECT 1 FROM projects WHERE repo_name=?", (name,)).fetchone()
             if exists:
                 con.execute("UPDATE projects SET url=?, local_path=?, is_git=?, default_branch=? WHERE repo_name=?",
-                            (url, str(p), int(is_git), default_branch(p) if is_git else None, p.name))
+                            (url, str(p), int(is_git), default_branch(p) if is_git else None, name))
                 continue
             con.execute(
                 "INSERT INTO projects(repo_name,url,local_path,stack,priority,complexity,is_git,default_branch) "
                 "VALUES (?,?,?,?,?,?,?,?)",
-                (p.name, url, str(p), stack, "medium", cx, int(is_git), default_branch(p) if is_git else None))
-            log_event(con, actor, "project_added", f"Registered {p.name}", p.name)
+                (name, url, str(p), stack, "medium", cx, int(is_git), default_branch(p) if is_git else None))
+            log_event(con, actor, "project_added", f"Registered {name}", name)
             added += 1
     return added
 
@@ -457,6 +465,8 @@ def list_files(repo: Path, is_git: bool) -> list[str]:
 def detect_tests(repo: Path, files: list[str]) -> list[str]:
     cmds = []
     names = set(files)
+    if "scripts/orch.py" in names:  # the orchestrator itself
+        cmds.append("python -m py_compile scripts/orch.py dashboard/app.py scripts/sync_playbooks.py")
     if "run_tests.py" in names:
         cmds.append("python run_tests.py")
     if any(f.startswith("tests/") and f.endswith(".py") for f in files) or "pytest.ini" in names or "pyproject.toml" in names:
@@ -499,6 +509,7 @@ def scan_project(name: str) -> dict:
     big.sort(reverse=True)
     facts = {
         "repo": name,
+        "local_path": str(repo),
         "scanned_at": now(),
         "is_git": is_git,
         "tracked_files": len(files),
@@ -526,7 +537,7 @@ def scan_project(name: str) -> dict:
     return facts
 
 
-SMOKE_SAFE = ("python run_tests.py", "python -m pytest -q", "./gradlew test", "dotnet test", "make")
+SMOKE_SAFE = ("python -m py_compile scripts/orch.py dashboard/app.py scripts/sync_playbooks.py", "python run_tests.py", "python -m pytest -q", "./gradlew test", "dotnet test", "make")
 
 
 def smoke(name: str, actor: str = "scout") -> dict:
@@ -1548,6 +1559,27 @@ def queue(agent: str) -> dict:
     raise OrchError("agent must be scout|architect|architect-high|planner")
 
 
+# ---------------------------------------------------------------- model performance (feeds MODEL_NOTES.md)
+
+def model_stats() -> dict:
+    """Outcome counts per actor from the event log: what each model lane delivered and where it struggled."""
+    with db() as con:
+        ev = rows(con, "SELECT actor, kind, message FROM events")
+    out: dict[str, dict] = {}
+    for e in ev:
+        a = out.setdefault(e["actor"], {})
+        k = e["kind"]
+        msg = e["message"] or ""
+        if k == "subtask":
+            k = "subtask_" + (msg.split("-> ", 1)[1].split(":", 1)[0].strip() if "-> " in msg else "?")
+        elif k == "verify":
+            k = "verify_pass" if "PASS" in msg else "verify_fail"
+        elif k.startswith("stage:"):
+            continue
+        a[k] = a.get(k, 0) + 1
+    return {actor: dict(sorted(c.items())) for actor, c in sorted(out.items())}
+
+
 # ---------------------------------------------------------------- bootstrap
 
 def init_all() -> dict:
@@ -1656,6 +1688,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--project")
     s.add_argument("--initiative", type=int)
     sp.add_parser("export", help="rewrite PORTFOLIO_STATE.json")
+    sp.add_parser("model-stats", help="outcome counts per agent/model lane (evidence for MODEL_NOTES.md)")
     s = sp.add_parser("inbox", help="what awaits the producer, what's in flight, what's claimed (for chat sessions)")
     s.add_argument("--md", action="store_true", help="markdown instead of JSON")
     s = sp.add_parser("claim", help="claim a card for an interactive session; agents will skip it")
@@ -1786,6 +1819,8 @@ def main(argv: list[str] | None = None) -> int:
             out = focus(a.repo, actor, a.hours, a.note)
         elif a.cmd == "unfocus":
             out = unfocus(a.repo, actor, a.note)
+        elif a.cmd == "model-stats":
+            out = model_stats()
         elif a.cmd == "export":
             out = {"path": str(JSON_PATH), "initiatives": len(export_json()["initiatives"])}
         else:

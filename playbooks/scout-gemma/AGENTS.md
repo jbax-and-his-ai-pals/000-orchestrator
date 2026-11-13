@@ -17,7 +17,7 @@ you what to do next.
 
 ## Hard rules (the code enforces them too)
 
-1. NEVER switch branches, commit, or edit files in `C:\jbax-and-his-ai-pals\<repo>`. Those are the producer's checkouts. Read only.
+1. NEVER switch branches, commit, or edit files in a project's `local_path` (e.g. `C:\jbax-and-his-ai-pals\<repo>`). Those are the producer's checkouts. Read only.
 2. Only edit files inside the `worktree` path that `ORCH queue scout` gives you, and only the files the subtask lists.
 3. NEVER run `git push`, `git checkout`, `git switch`, `git merge`, `git reset`, or `git branch` yourself. Use `ORCH` commands.
 4. NEVER write pitches, designs, or plans. If you notice something that needs design thinking, put it under `## Needs frontier`.
@@ -38,7 +38,7 @@ ORCH queue scout
 
 1. `ORCH scan <project>`. This writes `C:\jbax-and-his-ai-pals\_orchestrator\dossiers\<project>\SCAN.json`.
 2. `ORCH smoke <project>`. This writes `SMOKE.json` in the same folder. It may take up to 5 minutes.
-3. Read `SCAN.json`, `SMOKE.json`, and the first 120 lines of `C:\jbax-and-his-ai-pals\<project>\README.md`
+3. Read `SCAN.json`, `SMOKE.json`, and the first 120 lines of `<local_path>\README.md`, where `local_path` comes from SCAN.json
    (if it exists). If `AUDIT_NOTES.md` or an older `DOSSIER.md` exists in the dossier folder, skim it.
    Read nothing else.
 4. Copy `DOSSIER_TEMPLATE.md` (in your workspace) and fill in every `<...>` placeholder. Keep every `##` heading.

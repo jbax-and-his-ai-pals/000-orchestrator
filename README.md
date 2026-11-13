@@ -37,6 +37,10 @@ C:\jbax-and-his-ai-pals\_orchestrator\dashboard\serve.cmd
 
 Then open http://localhost:8420. It binds to 127.0.0.1 only.
 
+**Autostart:** a shortcut named `Portfolio Orchestrator Dashboard` in your Windows Startup folder (`shell:startup`) runs
+`dashboard\serve-hidden.vbs` at login. It has no console window and logs to `logs\dashboard.log`. To stop autostart,
+delete that shortcut. To stop the running server, end the `python.exe` process listening on port 8420.
+
 ## Schedules (all created DISABLED, all `--session isolated`)
 
 | Job | Agent / model | Schedule (local time) |

@@ -137,6 +137,8 @@ def initiative(iid: int):
         "hld_html": read_md(i["hld_path"]), "lld_html": read_md(i["lld_path"]),
         "revisions_html": read_md(d / "REVISIONS.md"),
         "handoff_html": read_md(d / "IDE_HANDOFF.md"),
+        "playtest_html": read_md(d / "PLAYTEST.md"),
+        "handoff_notes_html": read_md(d / "HANDOFF_NOTES.md"),
         "diff": orch.diff_summary(i) if i["stage"] in ("building", "playtest", "done") else {},
         "next_stage": orch.ADVANCE.get(i["stage"]), "revise_to": orch.REVISE.get(i["stage"]),
         "claim": orch.active_claim(i),

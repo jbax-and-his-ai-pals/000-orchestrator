@@ -271,6 +271,7 @@ async function showInitiative(id, tab, quiet = false) {
   $("#drawer-controls").onclick = e => { const b = e.target.closest("[data-act]"); if (b) act(i, b.dataset.act); };
 
   tabs([
+    ...(d.playtest_html ? [{ key: "playtest", label: "▶ Playtest", html: `<article class="md">${d.playtest_html}</article>` }] : []),
     { key: "pitch", label: "Pitch", html: `<article class="md">${d.pitch_html || ""}</article>` },
     { key: "hld", label: "HLD", html: d.hld_html && `<article class="md">${d.hld_html}</article>` },
     { key: "lld", label: "LLD", html: d.lld_html && `<article class="md">${d.lld_html}</article>` },
@@ -278,6 +279,7 @@ async function showInitiative(id, tab, quiet = false) {
     { key: "diff", label: "Diff / tests", html: diffHtml(d.diff, i.stage === "building" || i.stage === "playtest" || i.stage === "done" ? d.plan : null) },
     { key: "handoff", label: "IDE handoff", html: d.handoff_html && `<article class="md">${d.handoff_html}</article>` },
     { key: "rev", label: "Revisions", html: d.revisions_html && `<article class="md">${d.revisions_html}</article>` },
+    { key: "hnotes", label: "Handoff notes", html: d.handoff_notes_html && `<article class="md">${d.handoff_notes_html}</article>` },
     { key: "hist", label: "History", html: historyHtml(d.events) },
   ], openCard.tab);
   openDrawer();

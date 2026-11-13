@@ -1251,7 +1251,57 @@ def advance(iid: int, actor: str = "producer", note: str = "") -> dict:
             branch, wt = create_branch(con, init)
             return _set_stage(con, init, "building", actor, note or "Approved for build",
                               branch_name=branch, worktree_path=str(wt), revision_note=None)
+        if nxt == "done" and init["project_name"] == SELF_REPO and init.get("branch_name"):
+            shipped = ship_self(init)  # raises (card stays in playtest) if the merge can't be done cleanly
+            done = _set_stage(con, init, "done", actor, (note or "Approved") + f"; shipped: {shipped}",
+                              revision_note=None)
+            _restart_after_ship.append(True)
+            return done
         return _set_stage(con, init, nxt, actor, note or "Approved", revision_note=None)
+
+
+_restart_after_ship: list[bool] = []
+
+
+def ship_self(init: dict) -> str:
+    """Merge an approved 000-orchestrator feature into the live orchestrator's main, push, and clean up."""
+    repo, branch = ORCH, init["branch_name"]
+    if not branch.startswith("feat/"):
+        raise OrchError(f"refusing to ship non-feat branch {branch}")
+    if git(repo, "rev-parse", "--abbrev-ref", "HEAD") != "main":
+        raise OrchError("live orchestrator checkout is not on main; ship by hand")
+    dirty = [l for l in git(repo, "status", "--porcelain").splitlines() if l and not l.endswith(".tmp")]
+    if dirty:
+        raise OrchError(f"live orchestrator has uncommitted changes ({len(dirty)}); commit them, then approve again")
+    p = run(["git", "-C", str(repo), "merge", "--no-ff", branch, "-m",
+             f"Ship #{init['id']}: {init['title']}\n\nMerged {branch} on producer approval."])
+    if p.returncode != 0:
+        run(["git", "-C", str(repo), "merge", "--abort"])
+        raise OrchError(f"merge of {branch} failed; card left in playtest: {(p.stdout + p.stderr).strip()[:300]}")
+    sha = git(repo, "rev-parse", "--short", "HEAD")
+    pushed = run(["git", "-C", str(repo), "push", "-q"], timeout=120).returncode == 0
+    wt = init.get("worktree_path")
+    if wt and Path(wt).exists():
+        run(["git", "-C", str(repo), "worktree", "remove", "--force", wt])
+    run(["git", "-C", str(repo), "worktree", "prune"])
+    run(["git", "-C", str(repo), "branch", "-d", branch])
+    return f"{sha}{'' if pushed else ' (push failed; push by hand)'}"
+
+
+def restart_dashboard(delay: int = 3) -> None:
+    """Restart the always-on dashboard in a detached process (it may be the caller), so merged code goes live."""
+    if os.name != "nt":
+        return
+    vbs = ORCH / "dashboard" / "serve-hidden.vbs"
+    ps = (f"Start-Sleep -Seconds {delay}; "
+          "Get-NetTCPConnection -LocalPort 8420 -State Listen -ErrorAction SilentlyContinue | "
+          "ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }}; "
+          "Start-Sleep -Seconds 2; "
+          f"Start-Process -FilePath \"$env:WINDIR\\System32\\wscript.exe\" -ArgumentList '\"{vbs}\"'")
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) \
+        | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps.replace("{{", "{").replace("}}", "}")],
+                     creationflags=flags, close_fds=True)
 
 
 def revise(iid: int, note: str, actor: str = "producer") -> dict:
@@ -1788,6 +1838,8 @@ def main(argv: list[str] | None = None) -> int:
             out = {"path": str(ide_handoff(a.id))}
         elif a.cmd == "advance":
             out = advance(a.id, actor, a.note)
+            if _restart_after_ship:
+                restart_dashboard()
         elif a.cmd == "revise":
             out = revise(a.id, a.note, actor)
         elif a.cmd == "reject":

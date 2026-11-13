@@ -151,7 +151,11 @@ class Note(BaseModel):
 
 @app.post("/api/initiatives/{iid}/advance")
 def do_advance(iid: int, body: Note):
-    return orch.advance(iid, "producer", body.note)
+    out = orch.advance(iid, "producer", body.note)
+    if orch._restart_after_ship:  # an orchestrator feature was merged: reload this server with the new code
+        orch._restart_after_ship.clear()
+        orch.restart_dashboard()
+    return out
 
 
 @app.post("/api/initiatives/{iid}/revise")

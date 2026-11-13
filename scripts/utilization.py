@@ -209,7 +209,9 @@ def command_output(name, args, timeout):
         if any(c in executable for c in '&|<>^%!"\r\n'):
             raise CollectorError('missing_tool')
         comspec = str(Path(os.environ.get('SystemRoot', 'C:/Windows')) / 'System32' / 'cmd.exe')
-        argv = [comspec, '/d', '/s', '/c', '""' + executable + '" ' + ' '.join(args) + '"']
+        # Pass ONE pre-quoted command line: with a list, subprocess.list2cmdline escapes the inner quotes as \"
+        # and cmd.exe then cannot find the .cmd file (the collector failed instantly as 'unavailable').
+        argv = f'"{comspec}" /d /s /c ""{executable}" {" ".join(args)}"'
     result = subprocess.run(argv, shell=False, capture_output=True, text=True, encoding='utf-8',
                             errors='replace', timeout=timeout,
                             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)

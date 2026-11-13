@@ -8,6 +8,12 @@ _Scout: scout-gemma · scanned <scanned_at from SCAN.json> · scores are provisi
 - **Size:** <tracked_files> files, <code_lines> code lines
 - **Branch / state:** <current_branch>, <N dirty files or "clean">
 
+## Player experience
+<3-5 sentences in second person, describing an average session: how you start, what you spend most of the time doing,
+what a typical moment of tension or reward feels like, and how a session usually ends. More concrete than "what it is";
+less detailed than a list of controls. Use only what the README/docs describe. Write "unknown" if they don't say.
+For a tool rather than a game, describe the typical user's session.>
+
 ## Core loop
 <2-4 sentences: what the player does minute to minute and whether it seems to work, according to the README/docs. Write "unknown" if the docs do not say.>
 

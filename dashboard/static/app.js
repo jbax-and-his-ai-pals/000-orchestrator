@@ -116,6 +116,9 @@ function renderPulse() {
         ${p.has_audit ? `<span class="badge">audit notes</span>` : ""}
         ${p.focus ? `<span class="badge focus">🎯 focus: ${esc(p.focus)} · ${esc(untilText(p.focus_until))}</span>` : ""}
       </div>
+      ${m.has("player_experience") ? (p.player_experience
+        ? `<div class="pexp" title="${esc(p.player_experience)}">${esc(p.player_experience)}</div>`
+        : `<div class="pexp na">Player experience not documented yet</div>`) : ""}
       <div class="meters">
         ${m.has("playability_score") ? meter("Playability", p.playability_score) : ""}
         ${m.has("visual_maturity") ? meter("Visual", p.visual_maturity, "vis") : ""}

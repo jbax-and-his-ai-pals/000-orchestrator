@@ -162,3 +162,5 @@ pre.raw { font-family: var(--mono); font-size: 12px; background: var(--panel); b
 .modebox { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
 .modehead { font-size: 12.5px; color: var(--muted); }
 input.dur { width: 80px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+.pexp { font-size: 12.5px; line-height: 1.45; color: var(--text); opacity: .85; font-style: italic; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.pexp.na { opacity: .45; font-style: normal; color: var(--faint); }

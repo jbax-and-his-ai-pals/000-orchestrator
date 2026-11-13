@@ -69,7 +69,7 @@ GEMMA = {
     "max_changed_lines": 150,  # a gemma commit may add+delete at most this many lines
     "max_attempts": 2,         # blocked this many times -> auto-escalate to a frontier model
     "escalate_to": "codex",
-    "dossier_headings": ["## Snapshot", "## Core loop", "## Bottlenecks", "## Visual cohesion",
+    "dossier_headings": ["## Snapshot", "## Player experience", "## Core loop", "## Bottlenecks", "## Visual cohesion",
                          "## Recent activity", "## Smoke test", "## Needs frontier"],
 }
 SCOUT_ACTORS = {"scout-gemma", "gemma", "scout"}
@@ -106,7 +106,7 @@ SEED = {
 
 DEFAULT_CONFIG = {
     "dashboard": {"host": "127.0.0.1", "port": 8420, "poll_seconds": 4},
-    "metrics": ["stack", "playability_score", "visual_maturity", "complexity", "last_scanned_at"],
+    "metrics": ["stack", "player_experience", "playability_score", "visual_maturity", "complexity", "last_scanned_at"],
     "webhooks": {
         "enabled": False,
         "urls": [],
@@ -304,7 +304,7 @@ def init_db() -> None:
         if col not in have:
             con.execute(f"ALTER TABLE initiatives ADD COLUMN {col} TEXT")
     have = {r[1] for r in con.execute("PRAGMA table_info(projects)")}
-    for col in ("focus_by", "focus_until", "focus_note"):
+    for col in ("focus_by", "focus_until", "focus_note", "player_experience"):
         if col not in have:
             con.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
     con.commit()
@@ -397,7 +397,7 @@ def get_project(con, name: str) -> dict:
 
 
 PROJECT_FIELDS = {"stack", "priority", "complexity", "playability_score", "visual_maturity",
-                  "optimization_notes", "bottleneck_summary"}
+                  "optimization_notes", "bottleneck_summary", "player_experience"}
 
 
 def update_project(name: str, fields: dict, actor: str = "dashboard") -> dict:
@@ -613,6 +613,10 @@ def write_dossier(name: str, text: str, actor: str, fields: dict | None = None) 
         def section(h):
             m = re.search(rf"{re.escape(h)}\s*\n(.*?)(?=\n## |\Z)", text, re.S | re.I)
             return (m.group(1) if m else "").strip().lower()
+        exp = section("## Player experience")
+        if exp and not exp.startswith("unknown"):
+            m = re.search(r"## Player experience\s*\n(.*?)(?=\n## |\Z)", text, re.S | re.I)
+            fields["player_experience"] = " ".join(m.group(1).split())[:1200]
         if fields.get("playability_score") is not None and section("## Core loop") in ("", "unknown", "unknown."):
             raise OrchError("dossier rejected: Core loop is unknown, so leave out --playability (no evidence to score).")
         if fields.get("visual_maturity") is not None and section("## Visual cohesion").startswith("no evidence"):

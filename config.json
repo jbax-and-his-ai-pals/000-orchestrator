@@ -6,6 +6,7 @@
   },
   "metrics": [
     "stack",
+    "player_experience",
     "playability_score",
     "visual_maturity",
     "complexity",

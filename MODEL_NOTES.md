@@ -43,3 +43,14 @@ Update this after any dispatch that teaches something.
 **Gemini (free tier)**
 - 3.8 Flash: HTTP 503 every time we tried. 3.6 / 3.5 / 3.0 Flash and the Flash-Lites answer. Hosted Gemma 4: HTTP 400.
   Pro and Argon-class models: 429 (not free).
+
+### 2026-11-13: #5 Utilization tab (000-orchestrator), built entirely by Codex
+
+- LLD + 4-subtask plan in ~4 min; build of all 4 subtasks in one looped run; review passed (19 Python + 7 Node tests).
+  It added a design improvement on its own: a sampler lease, so the :8420 live and :8421 playtest copies don't double-sample.
+- **Missed a real-environment bug:** the OpenAI collector used a list argv for `openclaw.CMD`, Python escaped the quotes,
+  and cmd.exe failed instantly. Every test mocked `subprocess`, so review passed anyway. The conductor's pre-playtest
+  check against real tools caught it.
+  Lesson: for Windows tooling, require at least one **real-subprocess smoke** in `verify`, and have the conductor check
+  the actual running feature before calling it ready for playtest.
+- Cost: OpenAI 5h window went from ~75% to ~63% left over the LLD, build, review and #4's HLD.

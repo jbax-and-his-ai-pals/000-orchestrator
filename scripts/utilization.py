@@ -324,3 +324,137 @@ class Sampler:
         self.stop_event.set()
         if self.thread:
             self.thread.join(timeout=1)
+
+
+RANGES = {'24h': (86400, 300), '7d': (7*86400, 1800), '14d': (14*86400, 3600)}
+LANES = {'scout-gemma':'gemma', 'gemma':'gemma', 'scout':'gemma',
+         'planner-codex':'codex', 'planner':'codex', 'architect-claude':'claude',
+         'architect':'claude', 'reviewer-gemini':'gemini'}
+
+
+def safe_meta(raw):
+    try:
+        return metadata(json.loads(raw or '{}'))
+    except (ValueError, TypeError, AttributeError):
+        return {}
+
+
+def current_metric(con, source, key, now):
+    row = con.execute('SELECT * FROM metrics WHERE source=? AND key=? AND ts<=? ORDER BY ts DESC,rowid DESC LIMIT 1',
+                      (source, key, stamp(now))).fetchone()
+    error = con.execute("SELECT * FROM metrics WHERE source=? AND key='error' AND ts<=? ORDER BY ts DESC,rowid DESC LIMIT 1",
+                        (source, stamp(now))).fetchone()
+    result = {'status':'missing', 'reason':'no_observation', 'observed_at':None,
+              'age_seconds':None, 'value':None, 'meta':{}}
+    if row:
+        age = max(0, (now - utc(row['ts'])).total_seconds())
+        meta = safe_meta(row['meta'])
+        value = row['value']
+        if value is not None and not math.isfinite(value):
+            value = None
+        result.update(observed_at=row['ts'], age_seconds=age, value=value, meta=meta,
+                      status='ok' if value is not None else 'missing',
+                      reason=None if value is not None else meta.get('reason', 'unknown_value'))
+        threshold = {'gpu':180, 'ollama':180, 'openai':1200, 'anthropic':21600}[source]
+        if age > threshold:
+            result.update(status='stale', reason='observation_stale')
+        reset = meta.get('resets_at')
+        if reset and utc(reset) <= now and source in ('openai','anthropic'):
+            result.update(status='stale', reason='reset_passed')
+    if error and (not row or error['ts'] >= row['ts']):
+        result.update(status='error', reason=safe_meta(error['meta']).get('reason','unavailable'),
+                      error_at=error['ts'])
+    return result
+
+
+def utilization_report(store, selected='24h'):
+    if selected not in RANGES:
+        raise ValueError('range must be 24h, 7d or 14d')
+    now = utc(store.clock())
+    duration, bucket = RANGES[selected]
+    # Exactly N buckets, newest inclusive of now, with explicit null gaps.
+    count = duration // bucket
+    end = int(now.timestamp()) // bucket * bucket
+    start = end - (count-1)*bucket
+    start_dt = dt.datetime.fromtimestamp(start, UTC)
+    times = [stamp(dt.datetime.fromtimestamp(start+i*bucket, UTC)) for i in range(count)]
+    gpu = {key:[None]*count for key in KEYS['gpu']}
+    openai = {w:[None]*count for w in WINDOWS}
+    dots = {w:[] for w in WINDOWS}
+    notes = []
+    current = {}
+    with store.connect() as con:
+        for source in KEYS:
+            metrics = {key:current_metric(con,source,key,now) for key in KEYS[source]}
+            if source in ('openai','anthropic'):
+                current[source] = {w:metrics['remaining_pct.'+w] for w in WINDOWS}
+            else:
+                lead = metrics[KEYS[source][0]]
+                current[source] = {**lead, 'values':{k:v['value'] for k,v in metrics.items()},
+                                   'fields':metrics}
+        # SQLite aggregation streams from the ts index, bounded result size independent of raw samples.
+        for row in con.execute("SELECT key, CAST((unixepoch(ts)-?)/? AS INTEGER) b, AVG(value) v "
+                               "FROM metrics WHERE source='gpu' AND ts>=? AND ts<=? "
+                               "GROUP BY key,b ORDER BY b", (start,bucket,stamp(start_dt),stamp(now))):
+            if row['key'] in gpu and 0 <= row['b'] < count:
+                gpu[row['key']][row['b']] = row['v']
+        for window in WINDOWS:
+            key = 'remaining_pct.'+window
+            # Last observation in each bucket, not averaged percentage.
+            rows = con.execute("SELECT ts,value FROM metrics WHERE source='openai' AND key=? AND ts>=? AND ts<=? ORDER BY ts,rowid",
+                               (key,stamp(start_dt),stamp(now)))
+            for row in rows:
+                index = int((utc(row['ts']).timestamp()-start)//bucket)
+                if 0 <= index < count:
+                    openai[window][index] = row['value']
+            total = con.execute("SELECT count(*) FROM metrics WHERE source='anthropic' AND key=? AND ts>=? AND ts<=?",
+                                (key,stamp(start_dt),stamp(now))).fetchone()[0]
+            # Stream evenly selected original dots; no interpolated timestamps/values.
+            indices = {round(i*(total-1)/999) for i in range(1000)} if total > 1000 else None
+            for index,row in enumerate(con.execute("SELECT ts,value FROM metrics WHERE source='anthropic' AND key=? AND ts>=? AND ts<=? ORDER BY ts,rowid",
+                                                   (key,stamp(start_dt),stamp(now)))):
+                if indices is None or index in indices:
+                    dots[window].append({'ts':row['ts'],'value':row['value']})
+            if indices is not None:
+                notes.append('Claude '+window+' truncated to 1000 original dots')
+        hour_end = int(now.timestamp())//3600*3600
+        hours = min(336, duration//3600)
+        hour_start = hour_end-(hours-1)*3600
+        activity = {lane:[0]*hours for lane in ('gemma','codex','claude','gemini')}
+        gemini_count = 0
+        errors = {'429':0,'503':0}
+        last_gemini = None
+        coarse = stamp(dt.datetime.fromtimestamp(hour_start,UTC)-dt.timedelta(days=1))
+        # Existing local-offset timestamps require exact normalization after coarse indexed filtering.
+        for row in con.execute('SELECT ts,actor,kind,message FROM events WHERE ts>=? AND ts<=? ORDER BY ts',
+                               (coarse, stamp(now+dt.timedelta(days=1)))):
+            lane = LANES.get(row['actor'])
+            if not lane:
+                continue
+            try:
+                event = utc(row['ts'])
+            except (ValueError, TypeError):
+                continue
+            if event > now or event.timestamp() < hour_start:
+                continue
+            index = int((event.timestamp()-hour_start)//3600)
+            if not 0 <= index < hours:
+                continue
+            activity[lane][index] += 1
+            if row['actor'] == 'reviewer-gemini':
+                gemini_count += 1
+                last_gemini = max(last_gemini or event,event)
+                message = (str(row['kind'])[:128]+' '+str(row['message'] or '')[:2048])
+                for code in errors:
+                    if re.search(r'(?<!\d)'+code+r'(?!\d)',message):
+                        errors[code] += 1
+        current['gemini'] = {'status':'ok' if gemini_count else 'parked',
+                             'reason':'logged_actions_only_not_quota', 'logged_actions':gemini_count,
+                             'logged_errors':errors, 'observed_at':stamp(last_gemini) if last_gemini else None,
+                             'age_seconds':(now-last_gemini).total_seconds() if last_gemini else None}
+    return {'generated_at':stamp(now), 'range':selected, 'bucket_seconds':bucket,
+            'current':current, 'notes':notes,
+            'series':{'gpu':{'times':times, **gpu}, 'openai':{'times':times, **openai},
+                      'anthropic':dots, 'activity':{'times':[stamp(dt.datetime.fromtimestamp(hour_start+i*3600,UTC)) for i in range(hours)],
+                      'label':'Agent activity / hour (event proxy for runs)', **activity}}}
+

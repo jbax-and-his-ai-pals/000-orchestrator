@@ -11,6 +11,7 @@ from pathlib import Path
 
 import markdown
 from fastapi import FastAPI, HTTPException, Request
+from typing import Literal
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -81,6 +82,14 @@ async def orch_error(_: Request, exc: orch.OrchError):
 @app.get("/api/version")
 def version():
     return {"version": state_version()}
+
+
+@app.get("/api/utilization")
+def utilization_api(range: Literal["24h", "7d", "14d"] = "24h"):
+    try:
+        return utilization.utilization_report(utilization.Store(orch.DB_PATH), range)
+    except utilization.sqlite3.Error:
+        return JSONResponse({"error": "db_busy"}, status_code=503)
 
 
 @app.get("/api/state")

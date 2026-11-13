@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
 import sys
 from pathlib import Path
 
@@ -18,8 +19,24 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "scripts"))
 import orch  # noqa: E402
 
-orch.init_all()
-app = FastAPI(title="Portfolio Orchestrator", docs_url=None, redoc_url=None)
+import utilization
+
+
+@asynccontextmanager
+async def lifespan(app):
+    orch.init_all()
+    factory = getattr(app.state, "sampler_factory", utilization.Sampler)
+    sampler = factory(utilization.Store(orch.DB_PATH)) if factory else None
+    if sampler:
+        sampler.start()
+    try:
+        yield
+    finally:
+        if sampler:
+            sampler.stop()
+
+
+app = FastAPI(title="Portfolio Orchestrator", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 
 @app.middleware("http")

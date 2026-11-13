@@ -27,12 +27,17 @@ class ParserTests(unittest.TestCase):
             with self.assertRaises(ValueError): u.parse_ollama(bad)
 
     def test_openai_usage_only_and_partial(self):
-        # Text status format: independent 5h/Week windows, optional reset duration.
-        text='\x1b[32m- openai-codex usage: 5h 82% left ⏱ resets 2h 15m · Week 90% left\x1b[0m'
+        # Source-derived fixture: installed provider-usage.format-L6iA6HgQ.mjs
+        # formatUsageWindowSummary emits 'label N% left ⏱duration', joined with ·.
+        # list.status-command-BDWFKp41.mjs prefixes '- provider usage: '.
+        text='\x1b[32m- openai-codex usage: 5h 82% left ⏱2h 15m · Week 90% left ⏱6d 2h\x1b[0m'
         # The clock glyph may appear before resets in human-oriented status output.
         rows=u.parse_openai(text,'2026-11-13T22:00Z')
         self.assertEqual([r['value'] for r in rows],[82,90])
         self.assertEqual(rows[0]['meta']['resets_at'],'2026-11-14T00:15:00+00:00')
+        self.assertEqual(rows[1]['meta']['resets_at'],'2026-11-20T00:00:00+00:00')
+        expired=u.parse_openai('openai usage: 5h 1% left ⏱now','2026-11-13T22:00Z')
+        self.assertEqual(expired[0]['meta']['resets_at'],'2026-11-13T22:00:00+00:00')
         partial=u.parse_openai('openai usage: Week 0% left','2026-11-13T22:00Z')
         self.assertEqual(len(partial),1)
         self.assertEqual(partial[0]['value'],0)

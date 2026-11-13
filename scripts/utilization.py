@@ -177,14 +177,14 @@ def parse_openai(text, observed_at):
     line = next((line for line in text.splitlines() if re.search(r'openai(?:-codex)?\s+usage:', line, re.I)), '')
     rows = []
     for window, label in (('5h', '5h'), ('weekly', 'Week(?:ly)?')):
-        match = re.search(r'\b' + label + r'\s*:?\s*(\d+(?:\.\d+)?)%\s+left(?:\s*[⏱·|,-]?\s*resets?\s+(?P<duration>(?:\d+\s*[dhm]\s*)+))?', line, re.I)
+        match = re.search(r'\b' + label + r'\s*:?\s*(\d+(?:\.\d+)?)%\s+left(?:\s*(?:⏱\s*(?:resets?\s+)?|[·|,-]?\s*resets?\s+)(?P<duration>now|(?:\d+\s*[dhm]\s*)+))?', line, re.I)
         if not match:
             continue
         value = number(match.group(1), 100)
         seconds = sum(int(n) * {'d':86400,'h':3600,'m':60}[unit.lower()]
                       for n, unit in re.findall(r'(\d+)\s*([dhm])', match.group('duration') or '', re.I))
         rows.append({'key': 'remaining_pct.' + window, 'value': value,
-                     'meta': {'reset_estimated': True, 'resets_at': stamp(utc(observed_at) + dt.timedelta(seconds=seconds)) if seconds else None}})
+                     'meta': {'reset_estimated': True, 'resets_at': stamp(utc(observed_at) + dt.timedelta(seconds=seconds)) if match.group('duration') else None}})
     if not rows:
         raise ValueError('usage line unavailable')
     return rows

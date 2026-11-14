@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import steering
 import utilization as u
 
-PRIORS = {'build':1200, 'lld':1500, 'hld':1800, 'review':600, 'scan':60, 'spark':600}
+PRIORS = {'build':1200, 'lld':1500, 'hld':1800, 'review':600, 'scan':60, 'facts':60, 'spark':600}
 GATES = {'spark':'hld_draft','hld_review':'lld_draft','lld_review':'building','playtest':None}
 ACTOR_NAMES = {'codex':'Codex','claude':'Claude','gemma':'Gemma'}
 _cache = {}
@@ -46,7 +46,7 @@ def pick(queue):
     for key,kind in [('branches_to_review','review'),('lld_to_draft','lld'),('hld_to_draft','hld'),('sparks_needing_rework','spark'),('subtasks','build')]:
         if queue.get(key): return kind,queue[key][0]
     if queue.get('job')=='subtask': return 'build',queue
-    if queue.get('job')=='scan' and queue.get('project'): return 'scan',queue
+    if queue.get('job') in ('scan','facts') and queue.get('project'): return queue['job'],queue
     return None
 
 def next_check(job, after):
@@ -130,7 +130,7 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
             heapq.heappush(heap,(start,seq,'pick',len(jobs)-1,None)); seq+=1
     def sync(iid): by_id[iid]['execution_plan_json']=json.dumps(plans[iid])
     def key_for(kind,candidate):
-        if kind=='scan': return 'scan:'+candidate['project']
+        if kind in ('scan','facts'): return kind+':'+candidate['project']
         iid=candidate.get('initiative',candidate.get('id'))
         return 's:'+str(iid)+':'+str(candidate['subtask']['id']) if kind=='build' else 'i:'+str(iid)+':'+kind
     steps=0
@@ -141,7 +141,7 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
         if event=='done':
             kind,candidate,key,entry=payload; busy.discard(key); completed.add(key)
             entry['completion_at']=u.stamp(at)
-            if kind=='scan':
+            if kind in ('scan','facts'):
                 pmap[candidate['project']]['last_scanned_at']=u.stamp(at)
                 projs.sort(key=lambda p:( {'high':0,'medium':1,'low':2,'skip':3}.get(p.get('priority'),1), p.get('last_scanned_at') or ''))
             else:
@@ -171,7 +171,7 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
             if waits: heapq.heappush(heap,(min(waits)+dt.timedelta(seconds=1),seq,'pick',jidx,None)); seq+=1
             continue
         iid=candidate.get('initiative',candidate.get('id')); card=by_id.get(iid,{})
-        if kind=='scan': title='dossier '+candidate['project']; project=candidate['project']
+        if kind in ('scan','facts'): title=('facts ' if kind=='facts' else 'dossier ')+candidate['project']; project=candidate['project']
         else: title=candidate.get('subtask',{}).get('title') or card.get('title',''); project=card['project_name']
         stats=duration(samples,actor,kind)
         started=running[1] if running else at

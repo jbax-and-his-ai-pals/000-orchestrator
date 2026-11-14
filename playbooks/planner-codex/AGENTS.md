@@ -60,10 +60,22 @@ Every command prints JSON; errors arrive as `{"error": ...}` with the fix in the
 3. **Codex-routed subtasks** in `subtasks`, including ones escalated from Gemma (`escalated_from`). Read the notes
    about why Gemma failed. Work only in the given worktree. Run `verify` yourself, then
    `ORCH commit <id> -m "..."` and `ORCH subtask <id> <sub> done --note "..."`.
-4. **Optimization hunt** (if time remains): read 3–4 dossiers (`SCAN.json` largest files, `SMOKE.json`, the
+4. **Issues** in `issues_to_solve` (max 1 per run). Each is a project's biggest blocker, raised from its dossier.
+   The goal is a concrete proposed fix the producer can approve, not the fix itself.
+   - `ORCH issue-claim <id>` first (it counts an attempt and keeps other agents off it).
+   - Read the project's `DOSSIER.md` (Bottlenecks, Current state, Next milestone) and the code it cites. If the issue
+     has a `note`, a previous attempt or a rejected spark explains what didn't work: address it.
+   - Proposed fix: `ORCH issue-propose <id> --category <fun_gameplay|visual_craft|optimization|tech_audacity>
+     --title "<imperative, under 60 chars>" --pitch @<file>`. Pitch (under 200 words): **Problem** (evidence: files,
+     numbers) · **Fix** · **How we'll know it worked** (a check or a playtest question) · **Cost** (S/M/L and which
+     agents) · **Gemma-safe pieces**. This files a spark on the issue's project and marks the issue proposed.
+   - Can't find a credible fix? `ORCH issue-release <id> --to retry --note "<what you tried, what's unclear>"`.
+     Needs a human decision (direction, taste, hardware)? `--to producer`. Not a real problem? `--to dismiss`.
+     Never leave a claimed issue without one of these.
+5. **Optimization hunt** (if time remains): read 3–4 dossiers (`SCAN.json` largest files, `SMOKE.json`, the
    Bottlenecks section). Pitch at most 2 concrete `optimization` sparks with evidence:
    `ORCH add-spark --project <repo> --category optimization --title "..." --pitch @file`.
-5. Finish with `ORCH log "<one-line summary of this run>"`.
+6. Finish with `ORCH log "<one-line summary of this run>"`.
 
 ## Never
 

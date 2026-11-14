@@ -151,7 +151,11 @@ def state():
                                   "review": plan.get("review", {}).get("status")}
         i.pop("execution_plan_json", None)
     cfg = orch.load_config()
+    with orch.db() as con:
+        issues = orch.rows(con, "SELECT * FROM issues WHERE status != 'dismissed' ORDER BY id")
+        autosolve = orch.issues_autosolve(con)
     return {"version": state_version(), "projects": projects, "initiatives": inits, "events": events,
+            "issues": issues, "issues_autosolve": autosolve,
             "spotlight": orch.get_spotlight(), "aspects": sorted(orch.ASPECTS),
             "config": {"metrics": cfg["metrics"], "poll_seconds": cfg["dashboard"]["poll_seconds"],
                        "webhooks_enabled": cfg["webhooks"].get("enabled", False)},

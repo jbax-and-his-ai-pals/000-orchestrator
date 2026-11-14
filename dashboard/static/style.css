@@ -162,6 +162,8 @@ pre.raw { font-family: var(--mono); font-size: 12px; background: var(--panel); b
 .modebox { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
 .modehead { font-size: 12.5px; color: var(--muted); }
 input.dur { width: 80px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+.pdesc { font-size: 13px; line-height: 1.4; color: var(--text); font-weight: 500; overflow-wrap: anywhere; white-space: normal; }
+.pdesc.na { opacity: .45; font-weight: 400; color: var(--faint); }
 .pexp { font-size: 12.5px; line-height: 1.45; color: var(--text); opacity: .85; font-style: italic; overflow-wrap: anywhere; white-space: normal; }
 .pexp.na { opacity: .45; font-style: normal; color: var(--faint); }
 
@@ -447,3 +449,17 @@ details.card-panel .lane-grid { margin-top:12px; }
 .att-row .att-proj a.proj-tag { font-size:inherit; }
 .needs li .proj-tag { margin-right:6px; font-size:12px; }
 .card-proj { color:var(--text); font-weight:700; }
+
+/* issues needing triage (Triage Board) */
+.issues { margin-bottom: 16px; }
+.issues h2 { font-size: 15px; margin: 0 0 4px; }
+.issue-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.issue { display: grid; grid-template-columns: 150px 170px 1fr; gap: 4px 12px; align-items: baseline; padding: 8px 10px;
+  border: 1px solid var(--line, rgba(128,128,128,.25)); border-radius: 8px; }
+.issue .hint { grid-column: 2 / -1; }
+.issue-st { font-size: 12px; font-weight: 600; color: var(--warn); }
+.issue.st-proposed .issue-st { color: var(--ok, #3a3); }
+.issue.st-investigating .issue-st { color: var(--violet, #86f); }
+.issue.st-needs_producer .issue-st { color: var(--bad, #d44); }
+.issue-title { overflow-wrap: anywhere; }
+@media (max-width: 760px) { .issue { grid-template-columns: 1fr; } .issue .hint { grid-column: 1; } }

@@ -113,7 +113,7 @@ function renderSpotlight() {
 function render() {
   renderSpotlight(); renderPulse(); renderBoard(); renderActivity();
   if(O) Overview.update($("main"),O,$("#overview-filter").value);
-  const waiting = S.initiatives.filter(i => AWAITING.has(i.stage)).length;
+  const waiting = S.initiatives.filter(i => AWAITING.has(i.stage)).length + openIssues().length;
   $("#review-count").textContent = waiting || "";
   if (O) $("#attention-count").textContent = (Overview.attentionRows(O).length + (O.attention || []).filter(a => !String(a.key).startsWith("i:")).length) || "";
   $("#meta").textContent = `${S.projects.length} projects · ${S.initiatives.length} initiatives · webhooks ${S.config.webhooks_enabled ? "on" : "off"}`;
@@ -168,6 +168,9 @@ function renderPulse() {
         ${S.spotlight?.project === p.repo_name ? `<span class="badge focus">🔦 spotlight</span>` : ""}
         ${p.focus ? `<span class="badge focus">🎯 focus: ${esc(p.focus)} · ${esc(untilText(p.focus_until))}</span>` : ""}
       </div>
+      ${m.has("description") ? (p.description
+        ? `<div class="pdesc" title="${esc(p.description)}">${esc(p.description)}</div>`
+        : `<div class="pdesc na">No description yet</div>`) : ""}
       ${m.has("player_experience") ? (p.player_experience
         ? `<div class="pexp" title="${esc(p.player_experience)}">${esc(p.player_experience)}</div>`
         : `<div class="pexp na">Player experience not documented yet</div>`) : ""}
@@ -175,7 +178,6 @@ function renderPulse() {
         ${m.has("playability_score") ? meter("Playability", p.playability_score) : ""}
         ${m.has("visual_maturity") ? meter("Visual", p.visual_maturity, "vis") : ""}
       </div>
-      ${p.bottleneck_summary ? `<div class="pnote warn"><b>Bottleneck</b><span>${esc(p.bottleneck_summary)}</span></div>` : ""}
       ${m.has("optimization_notes") && p.optimization_notes ? `<div class="pnote"><b>Optimization</b><span>${esc(p.optimization_notes)}</span></div>` : ""}
       <div class="pfoot">${act ? `<span class="actor-chip ${ACTOR_CLS(act.actor)}">${esc(act.actor)}</span><span class="pkind">${esc(act.kind)}</span><span class="pmsg">${feedText((act.message || "").slice(0, 140))}</span><span class="pill">${ago(act.ts)}</span>`
         : `<span class="pmsg">No agent activity yet</span>`}${m.has("last_scanned_at") && p.last_scanned_at ? `<span class="pill dim">scanned ${ago(p.last_scanned_at)}</span>` : ""}</div>
@@ -201,8 +203,31 @@ function cardHtml(i) {
   </a>`;
 }
 
+const ISSUE_STATUS = {triage: "needs a proposed fix", investigating: "agent investigating", proposed: "fix proposed",
+  needs_producer: "needs your call"};
+const openIssues = () => (S.issues || []).filter(i => i.status === "triage" || i.status === "needs_producer");
+function issueRow(i) {
+  const who = i.status === "investigating" && i.owner ? ` · ${esc(i.owner)}` : "";
+  const spark = i.spark_id ? ` · <a href="#/initiative/${i.spark_id}">spark #${i.spark_id}</a>` : "";
+  return `<li class="issue st-${esc(i.status)}"><span class="issue-st">${esc(ISSUE_STATUS[i.status] || i.status)}</span>
+    <a class="issue-proj" href="#/project/${encodeURIComponent(i.project_name)}">${esc(num(i.project_name) || "")} ${esc(short(i.project_name))}</a>
+    <span class="issue-title">${esc(i.title)}</span>
+    <span class="hint">issue #${i.id}${i.attempts ? ` · ${i.attempts} attempt${i.attempts > 1 ? "s" : ""}` : ""}${who}${spark}${i.note && !i.spark_id ? ` · ${esc(i.note.slice(0, 140))}` : ""}</span></li>`;
+}
+function renderIssues() {
+  const all = (S.issues || []).filter(i => i.status !== "dismissed");
+  const order = {needs_producer: 0, triage: 1, investigating: 2, proposed: 3};
+  all.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || projRank(a.project_name) - projRank(b.project_name) || a.id - b.id);
+  const open = openIssues().length;
+  const mode = S.issues_autosolve ? "Codex and Claude pick these up on their runs until each has a proposed fix (a spark below)."
+    : "Auto-solving is off: agents won't pick these up until it's turned on (ask me in chat).";
+  $("#issues").innerHTML = `<h2>Issues needing triage <span class="hint">${open} open · ${all.length} total</span></h2>
+    <p class="hint">Each project's biggest blocker becomes an issue. ${mode}</p>
+    ${all.length ? `<ul class="issue-list">${all.map(issueRow).join("")}</ul>` : `<p class="hint">No issues.</p>`}`;
+}
 const cardRank = i => Overview.rank(O?.priority_context, i.project_name, i.id, i.priority).score;
 function renderBoard() {
+  renderIssues();
   $("#board").innerHTML = COLUMNS.map(c => {
     const items = S.initiatives.filter(i => c.stages.includes(i.stage))
       .sort((a, b) => cardRank(a) - cardRank(b) || (AWAITING.has(b.stage) - AWAITING.has(a.stage)) || b.updated_at.localeCompare(a.updated_at));

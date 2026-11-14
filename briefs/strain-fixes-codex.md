@@ -58,6 +58,25 @@ A frontier dossier (`_Author:` line, `orch.frontier_author`) goes stale as the p
 Claude's 5h and weekly numbers come only from chat snapshots (`quota-snapshot`). Wherever the dashboard shows them,
 append the age, e.g. `49% left · recorded 2 h ago from chat`. Past 3 hours, mark it stale: `(stale: open a chat to refresh)`.
 
+## 6. Planned Codex/Claude work is visible before it starts
+Producer: "the dashboard still makes it seem like gemma is doing all of the upcoming work, so i do need a better way
+to visualize our planned work we've defined for codex and claude". Today the timeline knows only cron timers, plus
+`dispatch start/end` records once a chat-launched run begins. The conductor schedules runs hours ahead (see
+`logs/*.sh`), and none of them show until they start.
+- Add `orch.py dispatch plan --lane <lane> --run <id> --label "..." [--project p] [--not-before <iso>] [--after "<text>"]`
+  (event `dispatch_plan`) and `dispatch cancel --lane --run`. A later `dispatch start` or `end` with the same run id
+  replaces the plan. Plans older than 24h without a start are dropped from the view.
+- `overview.py`: `lane['planned']` (sorted by not-before), and merge planned runs into the forecast timeline as
+  `work_type: "planned"`, so "Next expected update" and its THEN list interleave them with cron runs by time.
+  A plan with only `--after` shows without a clock time: "queued after the Claude judgment pass".
+- `overview.js`:
+  - Agents Now for an idle lane with plans: `Codex: next: solve 007 issue (planned from chat) in 2 hrs 10 min`.
+  - Upcoming entries: `Claude: judgment pass on 11 repos, planned from chat, ~22:33`.
+  - Give planned rows a "planned" pill, so they read differently from cron estimates.
+- Update `briefs/seed_codex.sh`, `judge_claude.sh` and `solve_issues.sh` so each repo's run is registered with
+  `dispatch plan` when a wave is queued (same run id as its later `dispatch start`), and add a line to the README's Handy CLI.
+- Tests: plan → start replaces it; cancel removes it; expiry; ordering against cron entries; `--after` without a time.
+
 ## Finish
 Run every test, then write `BUILD_NOTES.md` in the worktree root listing per item: what changed, tests added, and
 anything you could not verify. Then `ORCH log "strain-fixes ready for conductor review on feat/strain-fixes"`. Stop.

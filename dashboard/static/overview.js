@@ -183,11 +183,27 @@
     return '<h2>Active now <span class="badge-n teal">'+rows.length+'</span></h2>'+(rows.length?'<ul class="hero">'+rows.map(hero).join('')+'</ul>':'<p class="hero-empty">Nothing is running right now.</p>')
       +(next?'<p class="hero-next">Next start: <a href="'+esc(next.href)+'">'+esc(describe(next))+'</a> <b>'+esc(until(next.start_at))+'</b></p>':'');
   }
+  function bucket(iso,nowMs=Date.now()) {
+    const t=Date.parse(iso),d=new Date(t),today=new Date(nowMs);today.setHours(0,0,0,0);
+    const m=(t-nowMs)/60000,tomorrow=today.getTime()+86400000;
+    if(m<=60) return ['a','Within the hour'];
+    if(m<=180) return ['b','Next 3 hours'];
+    if(t<tomorrow) return ['c','Later today'];
+    if(t<tomorrow+86400000) return ['d','Tomorrow'];
+    return ['e',d.toLocaleDateString([],{weekday:'long'})];
+  }
   function workNext(data) {
+    const events=(data.forecast?.timeline||[]).slice().sort((a,b)=>Date.parse(a.start_at)-Date.parse(b.start_at));
+    if(!events.length) return '<h2>Next work</h2><p class="hint">No agent run is forecast in the next 24 hours.</p>';
     const groups=new Map();
-    for(const e of data.forecast?.timeline||[]){if(!groups.has(e.project))groups.set(e.project,[]);groups.get(e.project).push(e);}
-    if(!groups.size) return '<h2>Next work</h2><p class="hint">No agent run is forecast in the next 24 hours.</p>';
-    return '<h2>Next work · by project</h2><div class="next-groups">'+[...groups.entries()].map(([p,list])=>'<section class="next-group"><h3><a href="#/project/'+encodeURIComponent(p)+'">'+esc(p)+'</a></h3><ol>'+list.map(e=>'<li><time>'+esc(until(e.start_at))+'</time><a href="'+esc(e.href)+'">'+esc(describe(e))+'</a><span class="hint">'+esc(e.basis_label||'')+'</span></li>').join('')+'</ol></section>').join('')+'</div>';
+    for(const e of events){const [k,label]=bucket(e.start_at);if(!groups.has(k))groups.set(k,{label,list:[]});groups.get(k).list.push(e);}
+    const who=a=>({gemma:'Gemma',codex:'Codex',claude:'Claude'})[a]||owner(a);
+    return '<h2>Next work · by when</h2>'+[...groups.values()].map(g=>'<section class="when-group"><h3>'+esc(g.label)+' <span class="hint">'+g.list.length+'</span></h3><ol class="when-list">'+g.list.map(e=>
+      '<li><div class="when-time"><strong>'+esc(clock(e.start_at))+'</strong><span>'+esc(until(e.start_at))+'</span></div>'
+      +'<span class="actor-chip '+esc(e.actor)+'">'+esc(who(e.actor))+'</span>'
+      +'<div class="when-what"><a href="'+esc(e.href)+'">'+esc(describe(e))+'</a><p>'+esc([plain(e.work_type),e.initiative_id?'#'+e.initiative_id:'',e.basis_label].filter(Boolean).join(' · '))+'</p></div>'
+      +'<a class="when-proj" href="#/project/'+encodeURIComponent(e.project)+'">'+esc(e.project)+'</a>'
+      +'<div class="when-done"><span>done</span><strong>'+esc(clock(e.completion_at))+'</strong></div></li>').join('')+'</ol></section>').join('');
   }
   /* ---- Attention tab: everything that needs the producer to act ---- */
   const ACT={playtest:'Playtest',spark:'Approve pitch',hld_review:'Review HLD',lld_review:'Review LLD + plan'};
@@ -201,8 +217,17 @@
   function attentionFull(data) {
     const rows=attentionRows(data),other=(data.attention||[]).filter(a=>!String(a.key).startsWith('i:'));
     const age=s=>{const m=Math.floor((s||0)/60);return m<60?m+' min':Math.floor(m/60)+' hr '+(m%60)+' min';};
-    const row=r=>{const e=r.estimate||{},then=e.if_approved_now;
-      return '<li class="att-row"><span class="att-verb">'+esc(r.subtask_id?'Hands-on check':ACT[r.stage]||'Act')+'</span><div><a href="'+esc(r.href)+'">#'+esc(r.initiative_id)+(r.subtask_id?' / '+esc(r.subtask_id):'')+' '+esc(r.title)+'</a><p class="hint">'+esc(r.project)+(then?' · after you act: '+(then.completion_at?'lands '+until(then.completion_at):plain(then.reason||'')):'')+'</p></div><span class="att-age">waiting '+esc(age(r.age_seconds))+'</span></li>';};
+    const idx=data.initiative_index||{};
+    const cut=(t,n)=>{t=String(t||'').replace(/\*\*/g,'').replace(/\s+/g,' ').trim();return t.length>n?t.slice(0,n-1).trimEnd()+'…':t;};
+    const row=r=>{const e=r.estimate||{},then=e.if_approved_now,i=idx[r.initiative_id]||{},p=r.progress||{};
+      const after=then?(then.completion_at?'lands '+until(then.completion_at)+' ('+clock(then.completion_at)+')':plain(then.reason||'')):'';
+      const facts=[r.project,i.category&&plain(i.category),i.complexity==='high'?'high complexity':'',p.total?p.done+'/'+p.total+' subtasks':'',i.branch?'branch '+i.branch:''].filter(Boolean);
+      return '<li class="att-row"><span class="att-verb">'+esc(r.subtask_id?'Hands-on check':ACT[r.stage]||'Act')+'</span><div class="att-main"><a href="'+esc(r.href)+'">#'+esc(r.initiative_id)+(r.subtask_id?' / '+esc(r.subtask_id):'')+' '+esc(r.title)+'</a>'
+        +'<p class="att-facts">'+facts.map(x=>'<span>'+esc(x)+'</span>').join('')+'</p>'
+        +(i.pitch?'<p class="att-pitch">'+esc(cut(i.pitch,320))+'</p>':'')
+        +(i.revision?'<p class="att-rev"><b>Last note</b> '+esc(cut(i.revision,240))+'</p>':'')
+        +(after?'<p class="att-after"><b>After you act</b> '+esc(after)+'</p>':'')
+        +'</div><div class="att-age"><strong>'+esc(age(r.age_seconds))+'</strong><span>waiting</span></div></li>';};
     return '<h2>Needs you <span class="badge-n">'+(rows.length+other.length)+'</span></h2>'+(rows.length?'<ul class="att-list">'+rows.map(row).join('')+'</ul>':'<p class="hero-empty">Nothing needs you right now.</p>')
       +(other.length?'<h3>Housekeeping</h3><ul class="att-list">'+other.map(a=>'<li class="att-row"><span class="att-verb">'+esc(VERB[a.reason]||'Check')+'</span><div><a href="'+esc(a.href)+'">'+esc(a.title)+'</a></div><span></span></li>').join('')+'</ul>':'');
   }

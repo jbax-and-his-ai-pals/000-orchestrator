@@ -66,6 +66,8 @@ async function refresh(force = false) {
     version = S.version;
     const oldOverview=O, filterValue=$("#overview-filter").value;
     O = await api("/api/overview?project="+encodeURIComponent(filterValue));
+    O.initiative_index = Object.fromEntries(S.initiatives.map(i => [i.id, {pitch: i.pitch_summary, revision: i.revision_note, category: i.category, complexity: i.complexity, branch: i.branch_name}]));
+    window.__overview = O;
     if(oldOverview?.project_filter===filterValue) {
       for(const collection of Object.keys(O.pages)) {
         const items=(report,key)=>key.startsWith('pending.')?report.pending[key.split('.')[1]]:report[key];

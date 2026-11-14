@@ -23,6 +23,12 @@ _Last updated: 2026-11-13 20:45 PT_
   Waves are skipped if Codex is under 30%. 009, 010, 011, 013, 016 are left for the producer (playtest or
   hardware). Logs: `logs/solve_issues.log`, `logs/solve-<lane>-<repo>.log`. Next chat: check the resulting sparks on
   the Triage Board (`ORCH issues --status proposed`). Known gap: forecast doesn't show issue work.
+- **Strain fixes:** all of tonight's scripts now run DETACHED (they survive the chat): `seed_finish`, `solve_tonight`,
+  and `strain_build`, which starts Codex on `briefs/strain-fixes-codex.md` in `worktrees/000-orchestrator/strain-fixes`
+  after the issue batches, if Codex has 35% or more left. It covers: no Godot smoke false greens, PLAYTEST.md format
+  enforced at review pass, issue work shown in the forecast, stale-dossier refresh, and Claude quota age. Next chat:
+  review that branch against the brief, run the tests, and show the producer before merging. Claude's scheduled
+  Sonnet runs are ON (01:00, 09:00, 17:00) as of 21:35.
 - Codex 5h at ~10% left at 20:35 (resets 23:44 PT): no Codex dispatches until then.
 
 ## Roadmap (producer, 2026-11-13)
@@ -36,7 +42,7 @@ _Last updated: 2026-11-13 20:45 PT_
 - Non-orchestrator (game) work takes a back seat until the orchestrator milestones are done (producer, 2026-11-13).
   Don't dispatch frontier agents at game cards; Gemma's background dossier and smoke work continues.
 
-- Project priority (producer, 2026-11-13; they adjust it on the Pulse): high = 007, 009, 014, 017, 019; medium = 000,
+- Project priority (producer, 2026-11-13; they adjust it on the Pulse): high = 000 (until the producer agrees it's in a good place), 007, 009, 014, 017, 019; medium =
   002, 008, 010, 011, 012, 013, 015; low = 001, 003, 004, 005, 006, 016, 018. **Low = ideas only:** sparks and
   Gemma facts are fine, but no frontier spend (issues parked, no hunts or judgment passes; the launchers skip them).
   A low card moves only if the producer advances it. Check priority before any chat dispatch.
@@ -63,3 +69,5 @@ _Last updated: 2026-11-13 20:45 PT_
 - `ORCH smoke` false-greens on Godot: exit 0 despite parse errors in a fresh checkout that never ran the editor import
   (found by Codex on 003). Treat a Godot smoke PASS as unproven until fixed; the fix is a candidate card.
 - `logs/` is gitignored: reusable briefs and launchers go in `briefs/`, never only in `logs/`.
+- Bash `run_in_background` jobs die with the chat, and TaskStop can leave orphaned child bash processes running.
+  Launch long work with `briefs/detach.vbs`, and check `Get-CimInstance Win32_Process` for duplicates.

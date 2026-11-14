@@ -4,11 +4,19 @@ Every chat with the conductor starts fresh. This file holds what a new chat need
 background runs, environment quirks, unfinished conversations. Keep it under ~40 lines. Delete threads when they close.
 Card state lives in `orch.py inbox --md`; do not copy it here.
 
-_Last updated: 2026-11-13 20:45 PT_
+_Last updated: 2026-11-13 21:40 PT_
 
 **Chat start:** read this file and `inbox --md`, nothing more, until the producer asks for something.
 
 ## Running now
+- **Overnight, hands-free (all detached; they survive chat close):** 22:33 Claude judgment pass on 11 repos (low
+  skipped) → ~23:00 Claude solves 002, 014, 017, 019 + Opus HLD for #11 → 23:47 Codex and Claude on 000's dossier →
+  ~00:00 Codex solves 007, 008, 012, 015 → Codex builds strain fixes (if 35% or more left). Scheduled: Claude Sonnet
+  01:00, Codex 04:00, Gemma every 30 min. `logs/overnight_watchdog.sh` restarts the gateway or :8420 if they go down,
+  and writes **`logs/OVERNIGHT_SUMMARY.md` at 07:00**.
+- **Morning chat opener:** "Read logs/OVERNIGHT_SUMMARY.md, then walk me through what needs me." In that chat:
+  check the issue sparks on the Triage Board, present the #11 HLD for review, and review `feat/strain-fixes` against
+  its brief (tests, then show the producer before merging).
 - #6 sent back to lld_draft at 19:59 to rebase on #8 (scope in its REVISIONS.md); planner-codex's hourly cron picks it
   up. It must rebase on main (priority view 4f10483, dispatch visibility 40be8be touched overview.js/app.js).
 - **Seeding:** Codex deep dossiers done for all 19 game repos; Claude judgment pass done for 002 (pilot, excellent).

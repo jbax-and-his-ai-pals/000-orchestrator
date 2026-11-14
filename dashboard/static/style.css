@@ -200,6 +200,7 @@ a {color:var(--accent,#7aa2ff)}
 :focus-visible {outline:2px solid #4cc9d8;outline-offset:3px}
 .next-update {border:1px solid #7aa2ff;border-radius:10px;padding:18px 22px;background:#182134;margin-bottom:18px}
 .next-time {font-size:1.35rem;color:#4cc9d8}
+.next-what {font-size:1.05rem;margin:.2rem 0}
 .lane-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:24px}
 .lane,.pace {background:var(--panel,#171d29);border:1px solid var(--line,#30394b);border-radius:8px;padding:14px}
 .lane h2 {margin-top:0}.lane p,.pace p {font-size:12px;margin:8px 0;overflow-wrap:anywhere}

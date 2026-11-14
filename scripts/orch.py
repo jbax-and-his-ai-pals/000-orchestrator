@@ -561,7 +561,7 @@ def smoke(name: str, actor: str = "scout") -> dict:
     with db() as con:
         proj = get_project(con, name)
     check_focus(name, actor)
-    check_spotlight(name, actor)
+    check_spotlight(name, actor, scout_fallback=True)
     if not proj["is_git"]:
         return {"repo": name, "ran": False, "reason": "not a git repo"}
     repo = Path(proj["local_path"])
@@ -613,7 +613,7 @@ def write_dossier(name: str, text: str, actor: str, fields: dict | None = None) 
     with db() as con:
         get_project(con, name)
     check_focus(name, actor)
-    check_spotlight(name, actor)
+    check_spotlight(name, actor, scout_fallback=True)
     if actor in SCOUT_ACTORS:
         missing = [h for h in GEMMA["dossier_headings"] if h.lower() not in text.lower()]
         if missing:
@@ -895,10 +895,14 @@ def handoff_note(iid: int, note: str, actor: str) -> dict:
     return {"ok": True, "file": str(design_dir(init) / "HANDOFF_NOTES.md")}
 
 
-def check_spotlight(project: str, actor: str, category: str | None = None, iid: int | None = None) -> None:
-    """While a spotlight is on, scheduled agents work only on that project (and aspect, for new sparks)."""
+def check_spotlight(project: str, actor: str, category: str | None = None, iid: int | None = None,
+                    scout_fallback: bool = False) -> None:
+    """While a spotlight is on, scheduled agents work only on that project (and aspect, for new sparks).
+    Gemma is free, so its dossier work (scan/smoke/dossier) may fall back to other projects: scout_fallback."""
     s = get_spotlight()
     if not s or actor not in AGENT_ACTORS:
+        return
+    if scout_fallback and actor in SCOUT_ACTORS:
         return
     if project != s["project"]:
         if finishing(s, iid):
@@ -1684,8 +1688,13 @@ def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing
         if spot:
             p = next((x for x in projects if x["repo_name"] == spot["project"]), None)
             fresh = p and steering.recent(p.get("last_scanned_at"),clock,6*3600)
-            return {"job": "scan", "project": None if (not p or fresh) else p["repo_name"], "spotlight": spot}
-        return {"job": "scan", "project": projects[0]["repo_name"] if projects else None}
+            if p and not fresh:
+                return {"job": "scan", "project": p["repo_name"], "spotlight": spot}
+        # Gemma is free, so it is never idle: otherwise refresh the stalest dossier not scanned in the last 6h
+        # (priority first, then oldest scan). Focused projects are already excluded above.
+        stale = [x for x in projects if not steering.recent(x.get("last_scanned_at"),clock,6*3600)]
+        job = {"job": "scan", "project": stale[0]["repo_name"] if stale else None}
+        return {**job, "spotlight": spot, "fallback": True} if spot else job
     if agent in ("architect", "architect-high"):
         want_high = agent == "architect-high"
         hld = [brief(i) for i in inits if i["stage"] == "hld_draft" and (i["complexity"] == "high") == want_high]

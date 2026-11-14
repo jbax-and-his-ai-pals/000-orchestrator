@@ -54,7 +54,7 @@ def estimate(samples,actor,kind,start,now):
     if not stats or not start: return {'state':'unknown','reason':'insufficient_history' if not stats else 'no_start'}
     finish=date(start)+dt.timedelta(seconds=stats['seconds'])
     return {**stats,'state':'over_typical' if finish<now else 'estimated','completion_at':u.stamp(finish) if finish>=now else None,
-            'basis_at':start,'label':'estimate, not a deadline'}
+            'basis_at':start}
 
 def pace(metric,window,now):
     result={**metric,'pace':'unavailable','target_used':None,'delta_pp':None,'estimated':True}
@@ -108,6 +108,14 @@ def rollups(inits,projects,rows,gates,model):
         for stage,count in result['stages'].items(): totals['stages'][stage]=totals['stages'].get(stage,0)+count
         all_projects.append({**result,'project':name,'estimate':model['projects'].get(name,{'state':'blocked','reason':model.get('reason','no open initiatives')}),'priority':project.get('priority')})
     return {'totals':totals,'projects':all_projects}
+
+def _next_update(model,estimates,next_checks):
+    """The next expected thing: the earliest forecast event, else the earliest lane estimate."""
+    check=min(next_checks,default=None)
+    events=sorted(model.get('timeline') or [],key=lambda e:e['start_at'])
+    if events: return {**events[0],'next_check_at':check}
+    if estimates: return {**min(estimates,key=lambda e:e['completion_at']),'next_check_at':check}
+    return {'state':'unknown','next_check_at':check}
 
 def snapshot(orch,clock=None,bump=None):
     now=u.utc(clock() if clock else dt.datetime.now(u.UTC))
@@ -278,7 +286,7 @@ def snapshot(orch,clock=None,bump=None):
         recent=[e for e in events if e.get('project_name')==p['repo_name'] and e['actor'] not in ('init','producer') and date(e['ts']) and 0<=(now-date(e['ts'])).total_seconds()<=900]
         p['recent_activity']=bool(recent); p['version']=orch.project_version(p)
     return {'schema_version':1,'generated_at':u.stamp(now),'telemetry_generation':str(observation['generation'])+':'+str(metric_generation),
-            'history_truncated':len(events)>=10000,'lanes':lanes,'next_update':min(estimates,key=lambda e:e['completion_at']) if estimates else {'state':'unknown','next_check_at':min(next_checks,default=None)},
+            'history_truncated':len(events)>=10000,'lanes':lanes,'next_update':_next_update(model,estimates,next_checks),
             'confirmed_active':sorted(confirmed_active),'in_flight':rows,'pending':pending,'attention':list({a['key']:a for a in attention}.values()),'suggestions':suggestions,'projects':projects,'spotlight':spot,
             'forecast':model,'rollups':rollup,'what_if':comparison,
             'totals':{'initiatives':len(inits),'in_flight_rows':len(rows),'pending_rows':sum(map(len,pending.values()))}}

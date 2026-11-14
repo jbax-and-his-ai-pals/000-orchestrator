@@ -12,11 +12,30 @@
     const relative=minutes===0?'now':diff>=0?'in '+span:span+' ago';
     return new Date(iso).toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})+' ('+relative+')';
   }
+  function until(iso,now=Date.now()) {
+    const m=Math.round((Date.parse(iso)-now)/60000);
+    if(!Number.isFinite(m)) return 'unknown';
+    if(m<=0) return 'now';
+    return 'in '+(m>=60?Math.floor(m/60)+' hr'+(m>=120?'s':'')+(m%60?' '+(m%60)+' min':''):m+' min');
+  }
+  function describe(e) {
+    const who={'scout-gemma':'Gemma','planner-codex':'Codex','architect-claude':'Claude'}[owner(e.actor)]||owner(e.actor);
+    const card=e.initiative_id?'#'+e.initiative_id+' ':'';
+    if(e.work_type==='scan') return who+' refreshes the '+e.project+' dossier';
+    if(e.work_type==='build') return who+' builds “'+e.title+'” ('+card+'subtask '+e.subtask_id+')';
+    return who+' starts the '+plain(e.work_type)+' for '+card+e.title;
+  }
+  function nextUpdate(e) {
+    if(!e||!e.start_at) return '<p class="next-time">'+eta(e)+'</p>';
+    return '<p class="next-time">'+esc(until(e.start_at))+' <span class="hint">('+esc(local(e.start_at).replace(/ \(.*\)$/,''))+')</span></p>'
+      +'<p class="next-what"><a href="'+esc(e.href)+'">'+esc(describe(e))+'</a></p>'
+      +'<p class="hint">Takes '+esc(e.basis_label||'unknown')+' · done ~'+esc(local(e.completion_at))+'</p>';
+  }
   function eta(e) {
     if(!e) return 'Completion unknown (no forecast supplied)';
     const basis=e.basis_label|| (e.sample_count?e.sample_count+' samples, '+plain(e.basis):'');
     if(e.state==='waiting') return 'waiting on you '+Math.floor((e.waiting_seconds||0)/60)+' min'+(e.if_approved_now?'; if approved now, ETA '+eta(e.if_approved_now):'');
-    if(e.completion_at) return '~'+esc(local(e.completion_at))+(basis?' · '+esc(basis):'')+' · estimate, not a deadline';
+    if(e.completion_at) return '~'+esc(local(e.completion_at))+(basis?' · '+esc(basis):'');
     if(e.state==='over_typical') return 'Over typical duration; waiting for an updated completion estimate'+(basis?' · '+esc(basis):'');
     return esc(plain(e.reason||'Completion unknown'))+(basis?' · '+esc(basis):'')+(e.if_approved_now?'; if approved now, ETA '+eta(e.if_approved_now):'');
   }
@@ -56,7 +75,7 @@
     const pending=Object.entries(data.pending||{}).map(([name,items])=>'<details data-key="pending-'+esc(name)+'" open><summary>'+esc(plain(name))+' ('+total('pending.'+name,filter(items).length)+')</summary>'+rows(filter(items))+more('pending.'+name)+'</details>').join('');
     const quotas=(data.lanes||[]).map(l=>Object.entries(l.quota?.windows||{}).map(([w,m])=>'<article class="pace"><b>'+esc(l.label)+' · '+esc(w)+'</b><p>'+esc(m.value??'not recorded')+'% remaining · '+esc(plain(m.status))+'</p><p>'+esc(m.pace)+' · even-burn target used '+(m.target_used==null?'not available':m.target_used.toFixed(1)+'%')+'</p><p>Actual used '+(m.actual_used==null?'not available':m.actual_used.toFixed(1)+'%')+' · difference '+(m.delta_pp==null?'not available':m.delta_pp.toFixed(1)+'pp')+'</p><p class="hint">'+esc(plain(m.baseline||m.reason||'pace unavailable'))+' · reset '+esc(local(m.meta?.resets_at))+' · observed '+esc(local(m.observed_at))+'</p>'+(m.hint?'<p class="warning">'+esc(m.hint)+'</p>':'')+'</article>').join('')).join('');
     const attention=(data.attention||[]).map(a=>'<li><a href="'+esc(a.href)+'">'+esc(a.title)+'</a> · '+esc(plain(a.reason))+'</li>').join('')||'<li>None.</li>';
-    return {rollups:rollups(data,project),timeline:timeline(data,project),lanes,next:'<h2>Next expected update</h2><p class="next-time">'+eta(data.next_update)+'</p><p>Next scheduled check: '+esc(local(data.next_update?.next_check_at))+'</p><span class="hint">Observed '+esc(local(data.generated_at))+' · '+data.totals.initiatives+' open initiatives (parent and subtask rows are separate)</span>',flight:'<h2>In flight ('+total('in_flight',inFlight.length)+' rows)</h2>'+rows(inFlight)+more('in_flight'),pending,quotas:quotas||'<p>Quota pace unavailable. Gemini has no measured quota; Gemma is local.</p>',attention:'<ul>'+attention+'</ul>',suggestions:rows(filter(data.suggestions||[]))+more('suggestions')};
+    return {rollups:rollups(data,project),timeline:timeline(data,project),lanes,next:'<h2>Next expected update</h2>'+nextUpdate(data.next_update)+'<p>Next scheduled agent run: '+esc(local(data.next_update?.next_check_at))+'</p><span class="hint">Observed '+esc(local(data.generated_at))+' · '+data.totals.initiatives+' open initiatives (parent and subtask rows are separate)</span>',flight:'<h2>In flight ('+total('in_flight',inFlight.length)+' rows)</h2>'+rows(inFlight)+more('in_flight'),pending,quotas:quotas||'<p>Quota pace unavailable. Gemini has no measured quota; Gemma is local.</p>',attention:'<ul>'+attention+'</ul>',suggestions:rows(filter(data.suggestions||[]))+more('suggestions')};
   }
   function update(container,data,project='') {
     for(const [key,html] of Object.entries(regions(data,project))) {

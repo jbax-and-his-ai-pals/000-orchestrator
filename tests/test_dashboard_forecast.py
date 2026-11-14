@@ -102,6 +102,13 @@ class ForecastTests(unittest.TestCase):
         a['last_scanned_at']='2026-11-13T17:30:00-08:00'
         result=run([card(stage='spark')],projects=[a],lanes=[lane('gemma')],spot={'project':'a'})
         self.assertFalse(result['timeline'])
+    def test_gemma_falls_back_to_stale_dossier_outside_spotlight(self):
+        a=project('a');b=project('b');a['last_scanned_at']='2026-11-13T17:30:00-08:00'
+        result=run([card(stage='spark')],projects=[a,b],lanes=[lane('gemma')],spot={'project':'a'})
+        self.assertEqual(result['timeline'][0]['project'],'b')
+        a2=project('a');a2['last_scanned_at']='2026-11-13T17:30:00-08:00'
+        job=orch.queue_from_snapshot('scout',[],[a2,project('b')],{'project':'a'},u.stamp(NOW))
+        self.assertEqual((job['project'],job.get('fallback')),('b',True))
     def test_unknown_running_job_is_not_attributed_to_queued_work(self):
         l=lane();l['jobs'][0]['started_at']=u.stamp(NOW-dt.timedelta(minutes=1))
         result=run(lanes=[l])

@@ -182,7 +182,7 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
             continue
         entry={**stats,'key':key,'actor':actor,'work_type':kind,'initiative_id':iid,'project':project,
                'subtask_id':candidate.get('subtask',{}).get('id'),'title':title,'start_at':u.stamp(started),
-               'completion_at':u.stamp(finish),'state':'estimated','label':'next producer checkpoint; estimate, not a deadline',
+               'completion_at':u.stamp(finish),'state':'estimated','label':'next producer checkpoint',
                'href':'#/initiative/'+str(iid) if iid else '#/project/'+project}
         if kind=='build': entry['href']+='/subtask/'+str(entry['subtask_id'])
         timeline.append(entry); items[key]=entry; busy.add(key)
@@ -208,7 +208,7 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
         elif pending: eta={'state':'blocked','reason':pending[0]}
         elif relevant:
             last=max(relevant,key=lambda e:e['completion_at'])
-            eta={**last,'state':'estimated','label':'next producer checkpoint; estimate, not a deadline'}
+            eta={**last,'state':'estimated','label':'next producer checkpoint'}
             # A build without a scheduled review is not a completed rollup.
             if card['stage']=='building' and by_id[iid]['stage']=='building': eta={'state':'blocked','reason':'review outside next 24h or observed schedule','work_completion_at':last['completion_at']}
         else:

@@ -106,7 +106,7 @@ The producer sometimes works a card in a chat session (Claude desktop, Codex). C
 
 ## Spotlight
 
-Sometimes the producer points every agent at one project, optionally one aspect (design, content, graphics, tech, optimization). `ORCH queue ...` then includes a `spotlight` object, and only that project's work appears. While it is set, spend this whole run on that project. Pitch only in the listed `categories`, and for optimization hunts or deep reads choose only that project. ORCH refuses anything else.
+Sometimes the producer points every agent at one project, optionally one aspect (design, content, graphics, tech, optimization). `ORCH queue ...` then includes a `spotlight` object, and only that project's work appears. While it is set, spend this whole run on that project. Pitch only in the listed `categories`, and for optimization hunts or deep reads choose only that project. ORCH refuses anything else. One exception: if `ORCH queue scout` returns a scan job with `"fallback": true`, do Job A for the project it names, even outside the spotlight. You are free to run, so you are never idle.
 
 ### Job H: handoff note (when `ORCH queue scout` returns `"job": "handoff"`)
 

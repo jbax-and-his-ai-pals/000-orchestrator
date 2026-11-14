@@ -12,14 +12,14 @@ _Last updated: 2026-11-13 20:45 PT_
 - #6 sent back to lld_draft at 19:59 to rebase on #8 (scope in its REVISIONS.md); planner-codex's hourly cron picks it
   up. It must rebase on main (priority view 4f10483, dispatch visibility 40be8be touched overview.js/app.js).
 - **Seeding:** Codex deep dossiers done for all 19 game repos; Claude judgment pass done for 002 (pilot, excellent).
-  `logs/seed_finish.sh` is running in the background (log `logs/seed_finish.log`, per repo `logs/judge-claude-<repo>.log`).
+  Low-priority repos skip the Claude pass (Codex dossier only). `logs/seed_finish.sh` is running in the background (log `logs/seed_finish.log`, per repo `logs/judge-claude-<repo>.log`).
   It waits for 22:33 PT, runs the Claude pass on the other 18 in waves of 4, waits for 23:47 PT, then runs Codex and
   Claude on 000-orchestrator. If the chat that started it closed, check the logs; the script dies with its session.
   Then: spot-check the judged dossiers, check `ORCH issues`, and ask the producer about `issues-autosolve on`.
   Gemma backlog (11 docs tasks, 6 ready) is in `designs/0011-*/GEMMA_BACKLOG.md` for spark #11.
 - **Bottleneck issues** merged 21:05 (aaa6cb4); the orchestrator's issue is dismissed. Autosolve is ON (producer,
-  21:15). `logs/solve_tonight.sh` runs in the background: after the Claude judgment waves, Claude solves 002, 005,
-  014, 017, 019; after 000's dossier (~midnight), Codex solves 001, 003, 004, 006, then 007, 008, 012, 015, 018.
+  21:15). `logs/solve_tonight.sh` runs in the background: after the Claude judgment waves, Claude solves 002, 014,
+  017, 019; after 000's dossier (~midnight), Codex solves 007, 008, 012, 015 (the launcher skips the low repos listed).
   Waves are skipped if Codex is under 30%. 009, 010, 011, 013, 016 are left for the producer (playtest or
   hardware). Logs: `logs/solve_issues.log`, `logs/solve-<lane>-<repo>.log`. Next chat: check the resulting sparks on
   the Triage Board (`ORCH issues --status proposed`). Known gap: forecast doesn't show issue work.
@@ -36,6 +36,10 @@ _Last updated: 2026-11-13 20:45 PT_
 - Non-orchestrator (game) work takes a back seat until the orchestrator milestones are done (producer, 2026-11-13).
   Don't dispatch frontier agents at game cards; Gemma's background dossier and smoke work continues.
 
+- Project priority (producer, 2026-11-13; they adjust it on the Pulse): high = 007, 009, 014, 017, 019; medium = 000,
+  002, 008, 010, 011, 012, 013, 015; low = 001, 003, 004, 005, 006, 016, 018. **Low = ideas only:** sparks and
+  Gemma facts are fine, but no frontier spend (issues parked, no hunts or judgment passes; the launchers skip them).
+  A low card moves only if the producer advances it. Check priority before any chat dispatch.
 - Antigravity is parked as a route for now (producer, 2026-11-13): send its work to Codex/Claude instead.
 
 ## Waiting on the producer

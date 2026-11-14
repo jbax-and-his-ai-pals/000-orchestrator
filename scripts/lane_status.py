@@ -42,6 +42,7 @@ def parse_cron(text):
                        'next_run_at':milliseconds(state.get('nextRunAtMs')),
                        'started_at':milliseconds(state.get('runningAtMs')),
                        'last_run_at':milliseconds(state.get('lastRunAtMs')),
+                       'schedule':{k:v for k,v in job.get('schedule',{}).items() if k in ('kind','everyMs','expr','tz') and isinstance(v,(str,int))},
                        'last_status':state.get('lastRunStatus') if state.get('lastRunStatus') in ('ok','error','skipped') else None})
     return result
 

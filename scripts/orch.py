@@ -1631,12 +1631,27 @@ def queue(agent: str) -> dict:
         projects = rows(con, "SELECT repo_name, priority, complexity, last_scanned_at, is_git, focus_by, focus_until "
                              "FROM projects WHERE priority != 'skip' ORDER BY CASE priority WHEN 'high' THEN 0 "
                              "WHEN 'medium' THEN 1 ELSE 2 END, COALESCE(last_scanned_at, '') ASC")
-    focused = {p["repo_name"] for p in projects if active_focus(p)}
     spot = get_spotlight()
+    result = queue_from_snapshot(agent, inits, projects, spot, now(),
+        {actor:handoffs_due(spot,actor) for actor in ("gemma","codex","claude")},
+        {i["id"] for i in inits if finishing(spot,i["id"])})
+    items = result.get("subtasks", []) + ([result] if result.get("job")=="subtask" else [])
+    for item in items:
+        if item.get("worktree"):
+            item["new_files"] = [f for f in item["subtask"].get("files", []) if not (Path(item["worktree"]) / f).exists()]
+    return result
+
+
+def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing_ids=()):
+    """Pure dispatch boundary shared by live queues and read-only forecasting."""
+    due = due or {}
+    projects = [p for p in projects if p.get("priority") != "skip"]
+    focused = {p["repo_name"] for p in projects if steering.eligibility({},p,None,clock) == "project focus"}
+    spot = spot
     by_project = {p["repo_name"]:p for p in projects}
     who = {"planner":"codex","scout":"gemma"}.get(agent,"claude")
     inits = [i for i in inits if not steering.eligibility(i, by_project.get(i["project_name"], {"priority":"skip"}),
-             spot, now(), bool(handoffs_due(spot,who)), finishing(spot,i["id"]))]
+             spot, clock, bool(due.get(who)), i["id"] in finishing_ids)]
     rank = {"high":0,"medium":1,"low":2,"skip":3}
     inits.sort(key=lambda i:(rank.get(by_project.get(i["project_name"],{}).get("priority"),3),
                             rank.get(i.get("priority"),1),i["updated_at"],i["id"]))
@@ -1652,34 +1667,31 @@ def queue(agent: str) -> dict:
                 off_spot = spot and i["project_name"] != spot["project"]
                 if off_spot and s["status"] != "doing":
                     continue  # graceful: only finish what was already in progress elsewhere
-                if s["assignee"] == who and s["status"] in ("todo", "doing") and ready(s, subs):
+                if s["assignee"] == who and s["status"] in ("todo", "doing") and ready(s, subs) and (who != "gemma" or not gemma_fit(s, i["complexity"])):
                     item = {"initiative": i["id"], "project": i["project_name"], "worktree": i["worktree_path"],
                             "subtask": s}
-                    if i["worktree_path"]:
-                        item["new_files"] = [f for f in s.get("files", [])
-                                             if not (Path(i["worktree_path"]) / f).exists()]
                     out.append(item)
         return out
     brief = lambda i: {k: i[k] for k in ("id", "project_name", "title", "stage", "complexity", "revision_note")}
     if agent == "scout":
         # One job per run: a 12B model does one narrow thing well, several things badly.
-        due = handoffs_due(spot, "gemma")
-        if due:
-            return {"job": "handoff", **due[0], "spotlight": spot}
+        scout_due = due.get("gemma", [])
+        if scout_due:
+            return {"job": "handoff", **scout_due[0], "spotlight": spot}
         subs = subtasks_for("gemma")
         if subs:
             return {"job": "subtask", **subs[0], "remaining": len(subs) - 1, "spotlight": spot}
         if spot:
             p = next((x for x in projects if x["repo_name"] == spot["project"]), None)
             fresh = p and p["last_scanned_at"] and p["last_scanned_at"] > (
-                dt.datetime.now().astimezone() - dt.timedelta(hours=6)).isoformat(timespec="seconds")
+                dt.datetime.fromisoformat(clock) - dt.timedelta(hours=6)).isoformat(timespec="seconds")
             return {"job": "scan", "project": None if (not p or fresh) else p["repo_name"], "spotlight": spot}
         return {"job": "scan", "project": projects[0]["repo_name"] if projects else None}
     if agent in ("architect", "architect-high"):
         want_high = agent == "architect-high"
         hld = [brief(i) for i in inits if i["stage"] == "hld_draft" and (i["complexity"] == "high") == want_high]
         respark = [brief(i) for i in inits if i["stage"] == "spark" and i["revision_note"]]
-        return {"spotlight": spot, "handoffs_due": handoffs_due(spot, "claude"), "hld_to_draft": hld, "sparks_needing_rework": respark if not want_high else [],
+        return {"spotlight": spot, "handoffs_due": due.get("claude", []), "hld_to_draft": hld, "sparks_needing_rework": respark if not want_high else [],
                 "open_sparks": sum(1 for i in inits if i["stage"] == "spark"),
                 "subtasks": subtasks_for("claude") if not want_high else []}
     if agent == "planner":
@@ -1692,7 +1704,7 @@ def queue(agent: str) -> dict:
             work = [s for s in plan["subtasks"] if s["assignee"] != "ide_handoff"]
             if work and all(s["status"] == "done" for s in work) and plan.get("review", {}).get("status") != "pass":
                 review.append(brief(i))
-        return {"spotlight": spot, "handoffs_due": handoffs_due(spot, "codex"), "lld_to_draft": lld, "branches_to_review": review, "subtasks": subtasks_for("codex")}
+        return {"spotlight": spot, "handoffs_due": due.get("codex", []), "lld_to_draft": lld, "branches_to_review": review, "subtasks": subtasks_for("codex")}
     raise OrchError("agent must be scout|architect|architect-high|planner")
 
 

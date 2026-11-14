@@ -9,7 +9,9 @@ _Last updated: 2026-11-13 20:00 PT_
 **Chat start:** read this file and `inbox --md`, nothing more, until the producer asks for something.
 
 ## Running now
-- Nothing launched by the conductor. #5 and #8 (dashboard MVP) shipped at 19:58 (main d5f4ffb, pushed). Playbooks are
+- #6 sent back to lld_draft at 19:59 to rebase on #8 (scope in its REVISIONS.md); planner-codex's hourly cron picks it
+  up, so expect it at lld_review in roughly an hour. Then the producer reviews the LLD. #7 closed as absorbed into #8.
+- #5 and #8 (dashboard MVP) shipped at 19:58 (main d5f4ffb, pushed). Playbooks are
   installed (Gemma's never-idle fallback is live), the spotlight is ended, and the dashboard on :8420 runs the new build.
 
 ## Roadmap (producer, 2026-11-13)
@@ -27,8 +29,6 @@ _Last updated: 2026-11-13 20:00 PT_
   Don't dispatch frontier agents at game cards; Gemma's background dossier and smoke work continues.
 
 ## Waiting on the producer
-- #6 (quota forecasting + budget-aware routing) is milestone 2 work, but its LLD predates #8, which shipped the pacing
-  part. Send it back to lld_draft to rebase on #8 (needs the producer's word). #7 closed as absorbed into #8.
 - Back seat (game work): #2 playtest, #4 HLD review, spark #3. Orchestrator sparks: #9 (chat inside the orchestrator), #10 (seeding).
 - Tailscale: the producer enables Serve in the admin console, then run `tailscale serve --bg 8420`.
 

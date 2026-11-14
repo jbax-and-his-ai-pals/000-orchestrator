@@ -17,6 +17,15 @@ _Last updated: 2026-11-13 21:00 PT_
 - Dashboard priority view shipped 21:00 (main 4f10483, pushed; :8420 restarted). It touched overview.js/app.js,
   so #6's LLD/build should rebase on it.
 
+- **Seeding (started 20:15):** scan+smoke done for 001, 011-019 (`logs/seed_scan.log`). Codex pilot of deep dossiers
+  on 002, 003, 015 running (`logs/seed-codex-<repo>.log`, launcher `logs/seed_codex.sh <wave> <repos>`, brief
+  `logs/seed-codex-brief.md`). After pilot: check one against intent, then waves for the rest; Sonnet judgment pass per
+  repo with `logs/seed-claude-brief.md`. Antigravity set (producer-driven): 011, 012, 016, 018 via
+  `logs/seed-antigravity-brief.md`. Guard so Gemma can't flatten deep dossiers: branch `feat/frontier-dossier-guard`
+  (worktree `worktrees/000-orchestrator/frontier-dossier-guard`, 150 tests green), **needs producer merge within ~6h**
+  of the first deep dossier or Gemma's fallback refresh overwrites it. After merge, re-run write-dossier on pilot
+  dossiers so player_experience lands in the DB.
+
 ## Roadmap (producer, 2026-11-13)
 1. ~~#8 dashboard MVP~~ (shipped). 2. Harden the orchestrator to use every resource fully, on every project.
 3. AI-analyzed per-project metadata, kept current (spark #10). End state: the producer steers from a forward-looking view.

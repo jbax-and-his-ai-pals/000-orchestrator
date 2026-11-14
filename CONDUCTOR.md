@@ -22,7 +22,7 @@ _Last updated: 2026-11-13 21:00 PT_
   004-010, 013, 014, 017, 019) running 20:25 (`logs/seed-codex-<repo>.log`, `logs/seed_codex.log`; launcher
   `logs/seed_codex.sh <wave> <repos>`, brief `logs/seed-codex-brief.md`). Next: spot-check them, then Sonnet judgment
   pass per repo with `logs/seed-claude-brief.md` (after Claude 5h reset 22:30 PT), then queue [gemma] milestone bullets.
-  Antigravity set (producer-driven): 011, 012, 016, 018 via `logs/seed-antigravity-brief.md`. Gemma-overwrite guard
+  w4 (011, 012, 016, 018, rerouted from Antigravity) running 20:30. Gemma-overwrite guard
   merged 20:22 (main, `feat/frontier-dossier-guard`). Spark #11 (Gemma stabs) filed.
 
 ## Roadmap (producer, 2026-11-13)
@@ -38,6 +38,8 @@ _Last updated: 2026-11-13 21:00 PT_
 - Working mode: Codex for logic and volume; visual polish in chat ("if you'd judge it by looking, iterate here").
 - Non-orchestrator (game) work takes a back seat until the orchestrator milestones are done (producer, 2026-11-13).
   Don't dispatch frontier agents at game cards; Gemma's background dossier and smoke work continues.
+
+- Antigravity is parked as a route for now (producer, 2026-11-13): send its work to Codex/Claude instead.
 
 ## Waiting on the producer
 - Back seat (game work): #2 playtest, #4 HLD review, spark #3. Orchestrator sparks: #9 (chat inside the orchestrator), #10 (seeding).

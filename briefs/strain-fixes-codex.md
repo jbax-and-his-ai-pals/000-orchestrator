@@ -40,12 +40,9 @@ The producer needs every playtest as a short, expert, plain-language checklist. 
 - Dashboard initiative drawer: when the stage is `playtest`, render PLAYTEST.md first, above everything else, under
   the heading "Your playtest (~N min)", where N comes from the `**Time:**` line.
 
-## 3. Issue work shows in the forecast
-`overview.py` and `forecast.py` don't know about `issues_to_solve` (the live `orch.queue` adds it after
-`queue_from_snapshot`). When a lane's next scheduled run would reach issues (nothing higher in its queue, and
-autosolve on), add a forecast timeline entry, `work_type: "issue"`, e.g. "Codex solves issue 7 for
-007-twitch-chatbot-coordinator", at that run's start, so "Next expected update" and Agents Now show it.
-`describe()` in `overview.js` needs the label. Keep `queue_from_snapshot` pure: pass the open issues in as data.
+## 3. (Done by the conductor, merged to main as feat/forecast-issues.) Don't redo it.
+Issues now flow through `queue_from_snapshot(..., issues=...)`, the forecast has an `issue` work type (max 1 per
+run), and `overview.js` labels it. Item 6's planned runs should interleave with these entries in the same timeline.
 
 ## 4. Stale deep dossiers get refreshed
 A frontier dossier (`_Author:` line, `orch.frontier_author`) goes stale as the project moves on.

@@ -118,3 +118,11 @@ You were working on something the producer has moved away from. Before anything 
 ## VR projects: test headless or non-VR
 
 When running or verifying anything in a VR project (e.g. 004-vr-soccer), use headless or non-VR/desktop mode (e.g. `godot --headless`, or the project's XR-disabled flag). Launching in VR mode pops up a prompt on the producer's machine that needs a manual click. If nobody is there, the run hangs and looks stuck or broken when it isn't. Never treat a VR-mode hang as a bug. A VR-mode launch may go in a verify or smoke command only if the agent has a reliable, automated way to click the dialog's dismiss button. Otherwise, skip VR mode for testing.
+
+## Orchestrator improvement evidence
+
+When the assigned scan/smoke facts expose wasted quota, repeated failures or orchestrator friction,
+record the concrete observation under **## Needs frontier** for planner-codex/architect-claude.
+Bold opportunities are welcome, but do not investigate outside your one assigned job or spotlight.
+You still NEVER author pitches, designs or plans, change routing policy, or advance producer gates.
+A frontier agent may turn your evidence into a costed spark.

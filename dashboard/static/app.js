@@ -118,6 +118,18 @@ function meter(label, v, cls = "") {
     `<span class="val ${ok ? "" : "na"}">${ok ? v + "/10" : "—"}</span>`;
 }
 
+function pulseStats(name) {
+  const r = O?.rollups?.projects?.find(x => x.project === name) || {}, e = O?.forecast?.projects?.[name] || {};
+  let big, label, cls;
+  if (e.completion_at) { big = Overview.until(e.completion_at); label = "next checkpoint · " + Overview.local(e.completion_at).replace(/ \(.*\)$/, ""); cls = "good"; }
+  else if (e.state === "waiting" || r.waiting_on_producer) { big = "You"; label = "waiting on your review"; cls = "warn"; }
+  else if (!(r.open_initiatives || Object.keys(r.stages || {}).length)) { big = "—"; label = "no open work"; cls = "dim"; }
+  else { big = "Blocked"; label = Overview.plain(e.reason || "not scheduled"); cls = "bad"; }
+  const open = Object.values(r.stages || {}).reduce((a, b) => a + b, 0);
+  const stat = (n, l, c = "") => `<div class="pstat ${c}"><strong>${esc(n)}</strong><span>${esc(l)}</span></div>`;
+  return `<div class="pstats">${stat(big, label, "eta " + cls)}${stat(open, "open initiatives")}${stat((r.subtasks_done ?? 0) + "/" + (r.subtasks_total ?? 0), "subtasks done")}${stat(r.waiting_on_producer ?? 0, "waiting on you", r.waiting_on_producer ? "warn" : "")}</div>`;
+}
+
 function renderPulse() {
   const q = $("#filter").value.toLowerCase();
   const showSkip = $("#show-skip").checked;
@@ -135,7 +147,7 @@ function renderPulse() {
         <a class="pname" href="#/project/${encodeURIComponent(p.repo_name)}" data-project="${esc(p.repo_name)}"><span class="pnum">${num(p.repo_name)}</span>${esc(short(p.repo_name))}</a>
         <select class="prio" data-v="${p.priority}" data-prio="${esc(p.repo_name)}" aria-label="Priority">${opts}</select>
       </div>
-      ${Overview.preview("project",p.repo_name,O?.forecast?.projects?.[p.repo_name])}
+      ${pulseStats(p.repo_name)}
       <div class="badges">
         ${O?.projects.find(x=>x.repo_name===p.repo_name)?.recent_activity ? '<span class="badge">recent activity (not confirmed running)</span>' : ""}
         ${m.has("stack") && p.stack ? `<span class="badge stack">${esc(p.stack)}</span>` : ""}
@@ -152,10 +164,10 @@ function renderPulse() {
         ${m.has("playability_score") ? meter("Playability", p.playability_score) : ""}
         ${m.has("visual_maturity") ? meter("Visual", p.visual_maturity, "vis") : ""}
       </div>
-      ${p.bottleneck_summary ? `<div class="bneck">${esc(p.bottleneck_summary)}</div>` : ""}
-      ${m.has("optimization_notes") && p.optimization_notes ? `<div class="bneck">${esc(p.optimization_notes)}</div>` : ""}
-      <div class="activity-line">${act ? `<b>${esc(act.actor)}</b> ${esc(act.kind)} · ${esc((act.message || "").slice(0, 80))} · ${ago(act.ts)}`
-        : "No agent activity yet"}${m.has("last_scanned_at") ? ` · scanned ${ago(p.last_scanned_at)}` : ""}</div>
+      ${p.bottleneck_summary ? `<div class="pnote warn"><b>Bottleneck</b><span>${esc(p.bottleneck_summary)}</span></div>` : ""}
+      ${m.has("optimization_notes") && p.optimization_notes ? `<div class="pnote"><b>Optimization</b><span>${esc(p.optimization_notes)}</span></div>` : ""}
+      <div class="pfoot">${act ? `<span class="actor-chip ${ACTOR_CLS(act.actor)}">${esc(act.actor)}</span><span class="pkind">${esc(act.kind)}</span><span class="pmsg">${feedText((act.message || "").slice(0, 140))}</span><span class="pill">${ago(act.ts)}</span>`
+        : `<span class="pmsg">No agent activity yet</span>`}${m.has("last_scanned_at") && p.last_scanned_at ? `<span class="pill dim">scanned ${ago(p.last_scanned_at)}</span>` : ""}</div>
     </div>`;
   }).join("") || `<div class="empty">No projects match.</div>`;
 }

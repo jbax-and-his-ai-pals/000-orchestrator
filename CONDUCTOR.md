@@ -29,6 +29,8 @@ _Last updated: 2026-11-13 20:45 PT_
   enforced at review pass, issue work shown in the forecast, stale-dossier refresh, and Claude quota age. Next chat:
   review that branch against the brief, run the tests, and show the producer before merging. Claude's scheduled
   Sonnet runs are ON (01:00, 09:00, 17:00) as of 21:35.
+- **#11 Gemma stabs** is in hld_draft (producer: "included in the next wave"). `logs/hld11.sh` (detached) runs the
+  Opus HLD after the judgment waves. Next: producer reviews the HLD; on approval, Codex's next run writes the LLD.
 - Codex 5h at ~10% left at 20:35 (resets 23:44 PT): no Codex dispatches until then.
 
 ## Roadmap (producer, 2026-11-13)

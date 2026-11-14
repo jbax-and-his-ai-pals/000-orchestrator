@@ -17,7 +17,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import steering
 import utilization as u
 
-PRIORS = {'build':1200, 'lld':1500, 'hld':1800, 'review':600, 'scan':60, 'facts':60, 'spark':600}
+PRIORS = {'issue':300, 'build':1200, 'lld':1500, 'hld':1800, 'review':600, 'scan':60, 'facts':60, 'spark':600}
 GATES = {'spark':'hld_draft','hld_review':'lld_draft','lld_review':'building','playtest':None}
 ACTOR_NAMES = {'codex':'Codex','claude':'Claude','gemma':'Gemma'}
 _cache = {}
@@ -47,6 +47,7 @@ def pick(queue):
         if queue.get(key): return kind,queue[key][0]
     if queue.get('job')=='subtask': return 'build',queue
     if queue.get('job') in ('scan','facts') and queue.get('project'): return queue['job'],queue
+    if queue.get('issues_to_solve'): return 'issue',queue['issues_to_solve'][0]
     return None
 
 def next_check(job, after):
@@ -131,9 +132,10 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
     def sync(iid): by_id[iid]['execution_plan_json']=json.dumps(plans[iid])
     def key_for(kind,candidate):
         if kind in ('scan','facts'): return kind+':'+candidate['project']
+        if kind=='issue': return 'issue:'+str(candidate['id'])
         iid=candidate.get('initiative',candidate.get('id'))
         return 's:'+str(iid)+':'+str(candidate['subtask']['id']) if kind=='build' else 'i:'+str(iid)+':'+kind
-    steps=0
+    steps=0; solved=set()
     while heap and steps<max_events:
         at,_,event,jidx,payload=heapq.heappop(heap); steps+=1
         if at>end: break
@@ -141,7 +143,8 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
         if event=='done':
             kind,candidate,key,entry=payload; busy.discard(key); completed.add(key)
             entry['completion_at']=u.stamp(at)
-            if kind in ('scan','facts'):
+            if kind=='issue': solved.add(candidate['id'])
+            elif kind in ('scan','facts'):
                 pmap[candidate['project']]['last_scanned_at']=u.stamp(at)
                 projs.sort(key=lambda p:( {'high':0,'medium':1,'low':2,'skip':3}.get(p.get('priority'),1), p.get('last_scanned_at') or ''))
             else:
@@ -152,10 +155,11 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
                     card['stage']={'lld':'lld_review','hld':'hld_review','review':'playtest','spark':'spark'}[kind]
                     if kind=='review': plans[iid].setdefault('review',{})['status']='pass'; sync(iid)
             if job.get('enabled') and not lane_reasons.get(actor):
-                retry=next_check(job,at) if actor=='gemma' else at
+                retry=next_check(job,at) if actor=='gemma' or kind=='issue' else at  # playbooks: max 1 issue per run
                 if retry: heapq.heappush(heap,(retry,seq,'pick',jidx,None)); seq+=1
             continue
         q=dispatch(agent,cards,projs,spot,u.stamp(at),due or {},finishing_ids)
+        if q.get('issues_to_solve'): q={**q,'issues_to_solve':[i for i in q['issues_to_solve'] if i['id'] not in solved]}
         running=active.pop(actor,None)
         choice=('build',running[0]) if running else pick(q)
         if not choice:
@@ -170,8 +174,9 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
             waits=[h[0] for h in heap if h[2]=='done']
             if waits: heapq.heappush(heap,(min(waits)+dt.timedelta(seconds=1),seq,'pick',jidx,None)); seq+=1
             continue
-        iid=candidate.get('initiative',candidate.get('id')); card=by_id.get(iid,{})
-        if kind in ('scan','facts'): title=('facts ' if kind=='facts' else 'dossier ')+candidate['project']; project=candidate['project']
+        iid=None if kind=='issue' else candidate.get('initiative',candidate.get('id')); card=by_id.get(iid,{})
+        if kind=='issue': title='issue '+str(candidate['id'])+': '+candidate['title']; project=candidate['project_name']
+        elif kind in ('scan','facts'): title=('facts ' if kind=='facts' else 'dossier ')+candidate['project']; project=candidate['project']
         else: title=candidate.get('subtask',{}).get('title') or card.get('title',''); project=card['project_name']
         stats=duration(samples,actor,kind)
         started=running[1] if running else at

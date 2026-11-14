@@ -292,7 +292,10 @@ def snapshot(orch,clock=None,bump=None):
         lane['estimate']=min(valid,key=lambda x:x['completion_at']) if valid else {'state':'unknown','reason':'completion unknown'}
         if lane['reason']: add_attention({'key':lane['key'],'href':'#/','title':lane['label']},'scheduler '+lane['reason'])
         if lane['quota']['state']=='exhausted': add_attention({'key':lane['key'],'title':lane['label']},'quota exhausted')
-    model=forecast.cached(inits,projects,lanes,samples,now,orch.queue_from_snapshot,spot,due_by_actor,
+    with orch.db() as con:
+        open_issues=orch.issues_to_solve(con,spot,orch.now())
+    dispatch=lambda *a,**k: orch.queue_from_snapshot(*a,**k,issues=open_issues)
+    model=forecast.cached(inits,projects,lanes,samples,now,dispatch,spot,due_by_actor,
         [i['id'] for i in inits if orch.finishing(spot,i['id'])])
     for lane in lanes:
         upcoming=[e for e in model['timeline'] if e['actor']==lane['key']]
@@ -311,7 +314,7 @@ def snapshot(orch,clock=None,bump=None):
     rollup=rollups(inits,projects,all_rows,orch.AWAITING_PRODUCER,model)
     comparison=None
     if bump:
-        changed=forecast.cached(inits,projects,lanes,samples,now,orch.queue_from_snapshot,spot,due_by_actor,
+        changed=forecast.cached(inits,projects,lanes,samples,now,dispatch,spot,due_by_actor,
             [i['id'] for i in inits if orch.finishing(spot,i['id'])],bump)
         comparison=forecast.compare(model,changed,bump[0],bump[1])
     claims=[{'initiative_id':i['id'],'title':i['title'],'owner':i['claimed_by'],'note':i.get('claim_note'),'href':'#/initiative/'+str(i['id'])} for i in inits if i.get('claimed_by') and date(i.get('claim_expires_at')) and date(i['claim_expires_at'])>now]

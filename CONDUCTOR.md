@@ -4,42 +4,26 @@ Every chat with the conductor starts fresh. This file holds what a new chat need
 background runs, environment quirks, unfinished conversations. Keep it under ~40 lines. Delete threads when they close.
 Card state lives in `orch.py inbox --md`; do not copy it here.
 
-_Last updated: 2026-11-13 21:00 PT_
+_Last updated: 2026-11-13 20:45 PT_
 
 **Chat start:** read this file and `inbox --md`, nothing more, until the producer asks for something.
 
 ## Running now
 - #6 sent back to lld_draft at 19:59 to rebase on #8 (scope in its REVISIONS.md); planner-codex's hourly cron picks it
-  up, so expect it at lld_review in roughly an hour. Then the producer reviews the LLD. #7 closed as absorbed into #8.
-- #5 and #8 (dashboard MVP) shipped at 19:58 (main d5f4ffb, pushed). Playbooks are
-  installed (Gemma's never-idle fallback is live), the spotlight is ended, and the dashboard on :8420 runs the new build.
-
-- Dashboard priority view shipped 21:00 (main 4f10483, pushed; :8420 restarted). It touched overview.js/app.js,
-  so #6's LLD/build should rebase on it.
-
-- **Seeding (started 20:15):** scan+smoke done for 001, 011-019 (`logs/seed_scan.log`). Codex pilot of deep dossiers
-  on 002, 003, 015 done and checked (excellent, ~3 min each, checkouts untouched). Waves w1-w3 (12 repos: 001,
-  004-010, 013, 014, 017, 019) running 20:25 (`logs/seed-codex-<repo>.log`, `logs/seed_codex.log`; launcher
-  `logs/seed_codex.sh <wave> <repos>`, brief `logs/seed-codex-brief.md`). Next: spot-check them, then Sonnet judgment
-  pass per repo with `logs/seed-claude-brief.md` (after Claude 5h reset 22:30 PT), then queue [gemma] milestone bullets.
-  w4 (011, 012, 016, 018, rerouted from Antigravity) running 20:30. Gemma-overwrite guard
-  merged 20:22 (main, `feat/frontier-dossier-guard`). Spark #11 (Gemma stabs) filed.
-  Dashboard now shows chat-launched runs (merged 20:40, `feat/dispatch-visibility`): wrap every chat dispatch in
-  `ORCH dispatch start|end --lane <lane> --run <id> --label "..."` (seed_codex.sh does). 009's run predates the
-  launcher change: run `ORCH dispatch end --lane codex --run seed-009-vr-baseball` when it ends.
-
-- Codex 5h at ~10% left at 20:30 (resets 23:44 PT): no Codex dispatches until then.
+  up. It must rebase on main (priority view 4f10483, dispatch visibility 40be8be touched overview.js/app.js).
+- **Seeding:** all 19 game repos have Codex deep dossiers (done 20:35; all checkouts verified untouched). Next, in
+  order: (1) Claude judgment pass per repo with `briefs/seed-claude.md` once Claude 5h has room (reset 22:30 PT),
+  wrapped in `ORCH dispatch`; (2) turn the [gemma]-tagged "Next milestone" bullets into Gemma subtasks;
+  (3) 000-orchestrator still has a Gemma dossier. Rerun a repo with `briefs/seed_codex.sh <wave> <repos>`.
+- Codex 5h at ~10% left at 20:35 (resets 23:44 PT): no Codex dispatches until then.
 
 ## Roadmap (producer, 2026-11-13)
 1. ~~#8 dashboard MVP~~ (shipped). 2. Harden the orchestrator to use every resource fully, on every project.
 3. AI-analyzed per-project metadata, kept current (spark #10). End state: the producer steers from a forward-looking view.
-- **Next chat: project seeding** (producer confirmed 21:00: Claude + Codex on project metadata and standardizing each project). Codex writes deep dossiers (reads the repo, runs it headless); Claude Sonnet writes player
-  experience, scores, bottleneck and next milestone from the dossier; Gemma keeps facts fresh. Pilot 002-wasteball,
-  003-big-city and 015-mmc6-nes first to calibrate prompts and cost. Coverage now: 11/20 dossiers, 5/20 player experience.
+- Milestone 3 groundwork: seeding gave every repo a deep dossier (see Running now). Spark #11 (Gemma stabs) filed.
 
 ## Producer decisions in force
-- Dispatch within the 5h windows; weekly quota is information only ("if we hit weekly quota, that's unfortunate").
-  Revisit now that the MVP shipped. Gemma should always have work.
+- Dispatch within the 5h windows; weekly is information only. Gemma should always have work.
 - Working mode: Codex for logic and volume; visual polish in chat ("if you'd judge it by looking, iterate here").
 - Non-orchestrator (game) work takes a back seat until the orchestrator milestones are done (producer, 2026-11-13).
   Don't dispatch frontier agents at game cards; Gemma's background dossier and smoke work continues.
@@ -47,7 +31,7 @@ _Last updated: 2026-11-13 21:00 PT_
 - Antigravity is parked as a route for now (producer, 2026-11-13): send its work to Codex/Claude instead.
 
 ## Waiting on the producer
-- Back seat (game work): #2 playtest, #4 HLD review, spark #3. Orchestrator sparks: #9 (chat inside the orchestrator), #10 (seeding).
+- Back seat (game work): #2 playtest, #4 HLD review, spark #3. Orchestrator sparks: #9 (chat inside the orchestrator), #10 (seeding), #11 (Gemma stabs).
 - Tailscale: the producer enables Serve in the admin console, then run `tailscale serve --bg 8420`.
 
 ## Quirks
@@ -61,3 +45,9 @@ _Last updated: 2026-11-13 21:00 PT_
 - Codex refuses to advance gates (its playbook says so): the conductor or the producer advances them.
 - Worktree commits: the pre-commit hook runs `.venv/Scripts/python`, so junction the main `.venv` into the worktree first.
 - Static assets carry `?v=` cache-busters in `dashboard/static/index.html`; bump them when editing JS or CSS.
+- Worktree `.venv` junction: `mklink` fails from Git Bash; use PowerShell `New-Item -ItemType Junction`.
+- Dashboard playtest copies: an old copy may hold :8421. Serve a worktree build on a free port with `ORCH_HOME` pointed at
+  a scratch copy of `state/`, `dossiers/` and `config.json`, so testing never writes live state.
+- `ORCH smoke` false-greens on Godot: exit 0 despite parse errors in a fresh checkout that never ran the editor import
+  (found by Codex on 003). Treat a Godot smoke PASS as unproven until fixed; the fix is a candidate card.
+- `logs/` is gitignored: reusable briefs and launchers go in `briefs/`, never only in `logs/`.

@@ -21,7 +21,8 @@ Any card, any stage: **Approve / Advance**, **Request Revision** (feedback goes 
 | `state/orchestrator.db` | SQLite (`projects`, `initiatives`, `events`). `PORTFOLIO_STATE.json` is rewritten after every change. |
 | `state/TASTE_PROFILE.md` | Your creative philosophy, plus an auto-appended rejection log. Every agent reads it. |
 | `GEMMA_CAPABILITIES.md` | What local Gemma may and may not do, and when work escalates to a frontier model. |
-| `dossiers/<repo>/` | `SCAN.json` and `SMOKE.json` (deterministic), `DOSSIER.md` (Gemma), `AUDIT_NOTES.md` (migrated) |
+| `dossiers/<repo>/` | `SCAN.json` and `SMOKE.json` (deterministic), `DOSSIER.md` (Gemma template, or a frontier deep dossier with an `_Author:` line that Gemma won't overwrite; Gemma's refresh then goes to `DOSSIER.gemma.md`), `AUDIT_NOTES.md` (migrated) |
+| `briefs/` | Reusable conductor briefs and launchers (tracked; `logs/` is not), e.g. `seed_codex.sh` + `seed-codex.md` for deep dossiers |
 | `designs/<id>-<slug>/` | `PITCH.md`, `HLD.md`, `LLD.md`, `REVISIONS.md`, `IDE_HANDOFF.md` |
 | `worktrees/<repo>/<slug>/` | `feat/<slug>` checkouts. Your own checkouts are never switched or edited. |
 | `agents/<name>/` | OpenClaw workspaces: `AGENTS.md` playbook, plus an `orch.cmd` pre-tagged with the agent's identity |

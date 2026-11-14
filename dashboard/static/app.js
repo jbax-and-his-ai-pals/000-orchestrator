@@ -205,11 +205,14 @@ function cardHtml(i) {
 
 const ISSUE_STATUS = {triage: "needs a proposed fix", investigating: "agent investigating", proposed: "fix proposed",
   needs_producer: "needs your call"};
-const openIssues = () => (S.issues || []).filter(i => i.status === "triage" || i.status === "needs_producer");
+const issueParked = i => ["low", "skip"].includes(S.projects.find(p => p.repo_name === i.project_name)?.priority);
+const openIssues = () => (S.issues || []).filter(i => (i.status === "triage" && !issueParked(i)) || i.status === "needs_producer");
 function issueRow(i) {
   const who = i.status === "investigating" && i.owner ? ` · ${esc(i.owner)}` : "";
   const spark = i.spark_id ? ` · <a href="#/initiative/${i.spark_id}">spark #${i.spark_id}</a>` : "";
-  return `<li class="issue st-${esc(i.status)}"><span class="issue-st">${esc(ISSUE_STATUS[i.status] || i.status)}</span>
+  const prio = S.projects.find(p => p.repo_name === i.project_name)?.priority;
+  const parked = (prio === "low" || prio === "skip") && (i.status === "triage" || i.status === "investigating");
+  return `<li class="issue st-${esc(i.status)}${parked ? " parked" : ""}"><span class="issue-st">${esc(parked ? `parked (${prio} priority)` : (ISSUE_STATUS[i.status] || i.status))}</span>
     <a class="issue-proj" href="#/project/${encodeURIComponent(i.project_name)}">${esc(num(i.project_name) || "")} ${esc(short(i.project_name))}</a>
     <span class="issue-title">${esc(i.title)}</span>
     <span class="hint">issue #${i.id}${i.attempts ? ` · ${i.attempts} attempt${i.attempts > 1 ? "s" : ""}` : ""}${who}${spark}${i.note && !i.spark_id ? ` · ${esc(i.note.slice(0, 140))}` : ""}</span></li>`;
@@ -222,7 +225,7 @@ function renderIssues() {
   const mode = S.issues_autosolve ? "Codex and Claude pick these up on their runs until each has a proposed fix (a spark below)."
     : "Auto-solving is off: agents won't pick these up until it's turned on (ask me in chat).";
   $("#issues").innerHTML = `<h2>Issues needing triage <span class="hint">${open} open · ${all.length} total</span></h2>
-    <p class="hint">Each project's biggest blocker becomes an issue. ${mode}</p>
+    <p class="hint">Each project's biggest blocker becomes an issue. ${mode} Issues on low-priority projects stay parked (ideas only) until you raise the project's priority on the Pulse.</p>
     ${all.length ? `<ul class="issue-list">${all.map(issueRow).join("")}</ul>` : `<p class="hint">No issues.</p>`}`;
 }
 const cardRank = i => Overview.rank(O?.priority_context, i.project_name, i.id, i.priority).score;

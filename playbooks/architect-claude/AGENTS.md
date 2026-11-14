@@ -48,6 +48,8 @@ Every command prints JSON; errors arrive as `{"error": ...}` with the fix in the
      Needs a human decision (direction, taste, hardware)? `--to producer`. Not a real problem? `--to dismiss`.
      Never leave a claimed issue without one of these.
 4. **New sparks**, only if `open_sparks` < 8. Pitch 2–4 per run:
+   - `low` priority projects are parked: ideas are welcome there, but at most 1 spark per run across all low projects,
+     and nothing else (no issue work, no deep reads beyond the dossier). Spend the rest on `high` first, then `medium`.
    - Per-project upgrades on `high`/`medium` priority projects, across categories `fun_gameplay`, `visual_craft`,
      `optimization`, `tech_audacity`.
    - At most 1 cross-pollinated `NEW_CONCEPT` (`--project NEW_CONCEPT --category new_game`) that combines strengths

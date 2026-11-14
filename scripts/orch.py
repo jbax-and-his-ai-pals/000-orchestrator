@@ -755,13 +755,14 @@ def set_issues_autosolve(on: bool, actor: str) -> dict:
 
 def issues_to_solve(con, spot: dict | None, clock: str) -> list[dict]:
     """Issues an agent may pick up: in triage, or investigating but abandoned (stale), on projects agents may touch.
-    Empty unless the producer turned autosolve on (`orch.py issues-autosolve on`)."""
+    Empty unless the producer turned autosolve on (`orch.py issues-autosolve on`). Low-priority projects are
+    ideas-only (producer, 2026-11-13), so their issues wait until the project is raised to medium or high."""
     if not issues_autosolve(con):
         return []
     out = []
     for i in rows(con, "SELECT i.*, p.priority, p.focus_by, p.focus_until FROM issues i JOIN projects p "
                        "ON p.repo_name=i.project_name WHERE i.status IN ('triage','investigating') "
-                       "AND p.priority!='skip' ORDER BY CASE p.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 "
+                       "AND p.priority NOT IN ('skip','low') ORDER BY CASE p.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 "
                        "ELSE 2 END, i.id"):
         if i["status"] == "investigating" and steering.recent(i["updated_at"], clock, ISSUE_STALE_SECONDS):
             continue

@@ -461,5 +461,7 @@ details.card-panel .lane-grid { margin-top:12px; }
 .issue.st-proposed .issue-st { color: var(--ok, #3a3); }
 .issue.st-investigating .issue-st { color: var(--violet, #86f); }
 .issue.st-needs_producer .issue-st { color: var(--bad, #d44); }
+.issue.parked { opacity: .55; }
+.issue.parked .issue-st { color: var(--faint); }
 .issue-title { overflow-wrap: anywhere; }
 @media (max-width: 760px) { .issue { grid-template-columns: 1fr; } .issue .hint { grid-column: 1; } }

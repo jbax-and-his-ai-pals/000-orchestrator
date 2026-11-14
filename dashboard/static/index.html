@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Portfolio Orchestrator</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261113l">
+  <link rel="stylesheet" href="/static/style.css?v=20261113n">
 </head>
 <body>
   <header class="top">
@@ -25,6 +25,7 @@
 
   <div id="spotlight-banner" class="spot-banner" hidden></div>
   <main>
+    <div class="prio-strip" data-region="prioStrip" aria-label="Prioritized work"></div>
     <section id="view-overview" class="view active" aria-label="Overview">
       <div class="ov-head"><h1>How are we doing?</h1><span class="hint" data-region="stamp"></span></div>
       <div class="kpis" data-region="kpis"></div>
@@ -45,7 +46,7 @@
       <details class="card-panel" data-key="work-lanes"><summary>Agent lanes and timers</summary><div data-region="lanes" class="lane-grid"></div></details>
     </section>
     <section id="view-attention" class="view" aria-label="Attention">
-      <div class="toolbar"><h1>Attention</h1><span class="hint">Everything waiting on you, oldest first.</span></div>
+      <div class="toolbar"><h1>Attention</h1><span class="hint">Everything waiting on you: prioritized work first, then oldest.</span></div>
       <section class="card-panel" data-region="attentionFull"></section>
     </section>
     <section id="view-ideas" class="view" aria-label="Ideas">
@@ -101,9 +102,9 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/overview.js?v=20261113l"></script>
-  <script src="/static/navigation.js?v=20261113l"></script>
-  <script src="/static/app.js?v=20261113l"></script>
-  <script src="/static/utilization.js?v=20261113l"></script>
+  <script src="/static/overview.js?v=20261113n"></script>
+  <script src="/static/navigation.js?v=20261113n"></script>
+  <script src="/static/app.js?v=20261113n"></script>
+  <script src="/static/utilization.js?v=20261113n"></script>
 </body>
 </html>

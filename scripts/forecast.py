@@ -9,6 +9,7 @@ import hashlib
 import heapq
 import json
 import math
+import re
 import statistics
 import threading
 import time
@@ -57,7 +58,9 @@ def next_check(job, after):
     fields=str(schedule.get('expr','')).split()
     if len(fields)!=5: return None
     try: zone=ZoneInfo(schedule.get('tz') or 'UTC')
-    except ZoneInfoNotFoundError: return None
+    except ZoneInfoNotFoundError:
+        if schedule.get('tz','UTC') in ('UTC','Etc/UTC'): zone=u.UTC
+        else: return None
     def matches(expr,value):
         for part in expr.split(','):
             span,_,step=part.partition('/'); step=int(step or 1)
@@ -97,7 +100,7 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
                 i['priority']='high'; i['updated_at']='0000'; pmap.get(i['project_name'],{})['priority']='high'
         # Stable front-of-equal-priority placement is a what-if only, not a persisted edit.
         projs.sort(key=lambda p:0 if bump[0]=='project' and p['repo_name']==bump[1] else 1)
-    jobs=[]; lane_reasons={}; heap=[]; seq=0; timeline=[]; items={}; busy=set(); completed=set()
+    jobs=[]; active={}; lane_reasons={}; heap=[]; seq=0; timeline=[]; items={}; busy=set(); completed=set()
     for lane in lanes:
         actor=lane['key']
         if actor not in ('gemma','codex','claude'): continue
@@ -106,8 +109,15 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
         elif lane.get('reason'): reason='schedule observation unavailable or stale'
         elif lane.get('quota',{}).get('state')=='exhausted': reason='quota exhausted; resume time not observed'
         lane_reasons[actor]=reason
+        activity=lane.get('activity',{})
+        match=re.fullmatch(r'#/initiative/(\d+)/subtask/(\d+)',activity.get('href') or '')
+        if match and date(activity.get('started_at')):
+            iid,sid=map(int,match.groups())
+            sub=next((s for s in plans.get(iid,{}).get('subtasks',[]) if s['id']==sid and s.get('status')=='doing'),None)
+            if sub: active[actor]=({'initiative':iid,'subtask':sub},date(activity['started_at']))
         for job in lane.get('jobs',[]):
-            if not job.get('enabled') or reason: continue
+            observed_running=date(job.get('started_at')) and date(job['started_at'])<=now and actor in active
+            if (not job.get('enabled') or reason) and not observed_running: continue
             start=date(job.get('next_run_at'))
             running=date(job.get('started_at'))
             if running and running<=now: start=now
@@ -138,12 +148,16 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
                 else:
                     card['stage']={'lld':'lld_review','hld':'hld_review','review':'playtest','spark':'spark'}[kind]
                     if kind=='review': plans[iid].setdefault('review',{})['status']='pass'; sync(iid)
-            heapq.heappush(heap,(at,seq,'pick',jidx,None)); seq+=1
+            if job.get('enabled') and not lane_reasons.get(actor):
+                heapq.heappush(heap,(at,seq,'pick',jidx,None)); seq+=1
             continue
         q=dispatch(agent,cards,projs,spot,u.stamp(at),due or {},finishing_ids)
-        choice=pick(q)
+        running=active.pop(actor,None)
+        choice=('build',running[0]) if running else pick(q)
         if not choice:
-            retry=next_check(job,at)
+            waits=[h[0] for h in heap if h[2]=='done']
+            pending_picks=[h[0] for h in heap if h[2]=='pick' and h[0]==now and at==now]
+            retry=min(waits)+dt.timedelta(seconds=1) if waits else max(at,min(pending_picks))+dt.timedelta(seconds=1) if pending_picks else next_check(job,at)
             if retry and retry<=end: heapq.heappush(heap,(retry,seq,'pick',jidx,None)); seq+=1
             continue
         kind,candidate=choice; key=key_for(kind,candidate)
@@ -155,9 +169,15 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
         iid=candidate.get('initiative',candidate.get('id')); card=by_id.get(iid,{})
         if kind=='scan': title='dossier '+candidate['project']; project=candidate['project']
         else: title=candidate.get('subtask',{}).get('title') or card.get('title',''); project=card['project_name']
-        stats=duration(samples,actor,kind); finish=at+dt.timedelta(seconds=stats['seconds'])
+        stats=duration(samples,actor,kind)
+        started=running[1] if running else at
+        finish=started+dt.timedelta(seconds=stats['seconds'])
+        if running and finish<now:
+            items[key]={**stats,'state':'over_typical','reason':'active work is over typical duration; completion needs a new observation'}
+            completed.add(key)
+            continue
         entry={**stats,'key':key,'actor':actor,'work_type':kind,'initiative_id':iid,'project':project,
-               'subtask_id':candidate.get('subtask',{}).get('id'),'title':title,'start_at':u.stamp(at),
+               'subtask_id':candidate.get('subtask',{}).get('id'),'title':title,'start_at':u.stamp(started),
                'completion_at':u.stamp(finish),'state':'estimated','label':'next producer checkpoint; estimate, not a deadline',
                'href':'#/initiative/'+str(iid) if iid else '#/project/'+project}
         if kind=='build': entry['href']+='/subtask/'+str(entry['subtask_id'])
@@ -178,7 +198,7 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
             if key not in items:
                 reason=hard or ('waiting on you' if card['stage'] in GATES else None) or ('waiting for producer/editor work' if sub['assignee']=='ide_handoff' else None) or lane_reasons.get(sub['assignee']) or ('explicitly blocked' if sub.get('status')=='blocked' else 'outside next 24h or waiting for prerequisites / observed schedule')
                 items[key]={**duration(samples,sub['assignee'],'build'),'state':'blocked','reason':reason}
-            if items[key].get('state')=='blocked': pending.append(items[key]['reason'])
+            if items[key].get('state') in ('blocked','over_typical'): pending.append(items[key]['reason'])
         if hard: eta={'state':'blocked','reason':hard}
         elif card['stage'] in GATES: eta={'state':'waiting','reason':'waiting on you','waiting_seconds':max(0,(now-(date(card.get('stage_entered_at') or card.get('created_at')) or now)).total_seconds())}
         elif pending: eta={'state':'blocked','reason':pending[0]}

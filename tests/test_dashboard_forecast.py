@@ -76,6 +76,25 @@ class ForecastTests(unittest.TestCase):
         self.assertEqual(result['timeline'][0]['work_type'],'scan')
         result=f.simulate([card(subs=[sub(n) for n in range(10)])],[project()],[lane()],[],NOW,orch.queue_from_snapshot,max_events=2)
         self.assertTrue(result['truncated'])
+    def test_active_remaining_time_and_overdue_do_not_slide(self):
+        cards=[card(subs=[sub(1,status='doing')])]
+        l=lane();l['jobs'][0]['enabled']=False;l['jobs'][0]['started_at']=u.stamp(NOW-dt.timedelta(minutes=5));l['scheduler']['state']='paused'
+        l['activity']={'href':'#/initiative/1/subtask/1','started_at':u.stamp(NOW-dt.timedelta(minutes=5))}
+        result=run(cards,lanes=[l])
+        self.assertEqual(result['items']['s:1:1']['completion_at'],u.stamp(NOW+dt.timedelta(minutes=15)))
+        self.assertEqual(len(result['timeline']),1)
+        l['activity']['started_at']=u.stamp(NOW-dt.timedelta(minutes=30))
+        result=run(cards,lanes=[l])
+        self.assertEqual(result['items']['s:1:1']['state'],'over_typical')
+        self.assertNotIn('completion_at',result['items']['s:1:1'])
+    def test_observed_recurrence_only(self):
+        self.assertIsNone(f.next_check({},NOW))
+        self.assertEqual(f.next_check({'schedule':{'kind':'every','everyMs':1800000}},NOW),NOW+dt.timedelta(minutes=30))
+        at=f.next_check({'schedule':{'kind':'cron','expr':'*/30 * * * *','tz':'UTC'}},NOW)
+        self.assertEqual(at,NOW+dt.timedelta(minutes=30))
+    def test_cross_lane_dependency_retries_after_completion(self):
+        result=run([card(subs=[sub(1,'claude'),sub(2)])],lanes=[lane('codex'),lane('claude')])
+        self.assertEqual([e['subtask_id'] for e in result['timeline'] if e['work_type']=='build'],[1,2])
     def test_cache_returns_copies(self):
         args=([card()],[project()],[lane()],[],NOW,orch.queue_from_snapshot)
         x=f.cached(*args);x['timeline'].clear()

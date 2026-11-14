@@ -24,7 +24,9 @@
   <main>
     <section id="view-overview" class="view active" aria-label="Overview">
       <div class="toolbar"><h1>How are we doing?</h1><label>Project <select id="overview-filter"><option value="">All projects</option></select></label><a href="#/tab/triage">Producer inbox</a></div>
+      <section data-region="rollups" aria-label="Project rollups"></section>
       <div data-region="next" class="next-update"></div>
+      <section data-region="timeline" aria-label="Next hours"></section>
       <div data-region="lanes" class="lane-grid"></div>
       <div class="overview-columns"><div><section data-region="flight"></section><h2>Pending work</h2><div data-region="pending"></div></div>
         <aside><h2>Attention needed</h2><div data-region="attention"></div><h2>Quota pace</h2><div data-region="quotas"></div><a href="#/tab/utilization">Quota / GPU history</a></aside></div>

@@ -135,6 +135,7 @@ function renderPulse() {
         <a class="pname" href="#/project/${encodeURIComponent(p.repo_name)}" data-project="${esc(p.repo_name)}"><span class="pnum">${num(p.repo_name)}</span>${esc(short(p.repo_name))}</a>
         <select class="prio" data-v="${p.priority}" data-prio="${esc(p.repo_name)}" aria-label="Priority">${opts}</select>
       </div>
+      ${Overview.preview("project",p.repo_name,O?.forecast?.projects?.[p.repo_name])}
       <div class="badges">
         ${O?.projects.find(x=>x.repo_name===p.repo_name)?.recent_activity ? '<span class="badge">recent activity (not confirmed running)</span>' : ""}
         ${m.has("stack") && p.stack ? `<span class="badge stack">${esc(p.stack)}</span>` : ""}
@@ -166,7 +167,7 @@ function cardHtml(i) {
   const prog = i.plan_progress ? ` · ${i.plan_progress.done}/${i.plan_progress.total} subtasks` +
     (i.plan_progress.review && i.plan_progress.review !== "pending" ? ` · review ${i.plan_progress.review}` : "") : "";
   return `<a href="#/initiative/${i.id}" class="card ${awaiting ? "awaiting" : O?.confirmed_active?.includes(i.id) ? "working" : ""}" data-init="${i.id}" id="card-${i.id}">
-    <div class="card-sub"><span class="stage ${awaiting ? "awaiting" : ""}">${i.stage}</span>
+    <div class="card-sub"><span class="stage ${awaiting ? "awaiting" : ""}">${esc(Overview.plain(i.stage))}</span>
       <span class="cat cat-${i.category}">${CATEGORY_LABEL[i.category]}</span>${i.complexity === "high" ? `<span class="cat" style="color:var(--violet)">· high</span>` : ""}</div>
     <div class="card-title">${esc(i.title)}${O?.confirmed_active?.includes(i.id) ? ' <span class="badge">confirmed working</span>' : ""}</div>
     <div class="card-sub">${esc(i.project_name === "NEW_CONCEPT" ? "✦ new concept" : short(i.project_name))} · ${ago(i.updated_at)}${prog}</div>
@@ -191,7 +192,7 @@ function renderBoard() {
 /* ---------------- activity + taste ---------------- */
 
 function renderActivity() {
-  $("#activity").innerHTML = S.events.map(e => `<li><span class="ts">${esc(e.ts.replace("T", " ").slice(0, 16))}</span>
+  $("#activity").innerHTML = S.events.map(e => `<li><span class="ts">${esc(Overview.local(e.ts))}</span>
     <span class="actor">${esc(e.actor)}</span>
     <span>${e.project_name ? `<b>${esc(short(e.project_name))}</b> · ` : ""}${e.initiative_id ? `<a href="#card-${e.initiative_id}" data-init="${e.initiative_id}">#${e.initiative_id}</a> · ` : ""}${esc(e.kind)} ${esc(e.message || "")}</span></li>`).join("")
     || `<li class="empty">No activity yet.</li>`;
@@ -236,7 +237,7 @@ function planHtml(plan,iid,planVersion) {
   const rows = (plan.subtasks || []).map(s => `<tr><td>${s.id}</td><td><b><a href="#/initiative/${iid}/subtask/${s.id}">${esc(s.title)}</a></b><div class="hint">${esc(s.instructions || "")}</div>
     ${s.files?.length ? `<div class="hint">files: ${esc(s.files.join(", "))}</div>` : ""}
     ${s.notes ? `<pre class="raw">${esc(s.notes)}</pre>` : ""}</td>
-    <td><span class="who who-${s.assignee}">${s.assignee}</span></td><td class="st-${s.status}">${s.status}</td></tr>`).join("");
+    <td><span class="who who-${s.assignee}">${s.assignee}</span></td><td class="st-${s.status}">${s.status}<div class="estimate">${s.status==="done"?"Complete":Overview.eta(O?.forecast?.items?.[`s:${iid}:${s.id}`])}</div></td></tr>`).join("");
   const r = plan.review || {};
   const orderControls='<p class="hint">Pending order changes implicit prerequisites. Done/doing positions stay fixed.</p>'+(plan.subtasks||[]).map((s,n)=>'<div class="reorder"><span>#'+s.id+' '+esc(s.title)+'</span>'+[[-1,"Up"],[1,"Down"]].map(([delta,label])=>'<button class="btn" data-reorder="'+iid+'" data-index="'+n+'" data-delta="'+delta+'" data-version="'+esc(planVersion)+'" data-order="'+esc(JSON.stringify(plan.subtasks.map(x=>x.id)))+'" '+(["done","doing"].includes(s.status)||n+delta<0||n+delta>=plan.subtasks.length?"disabled":"")+'>'+label+' #'+s.id+'</button>').join("")+'</div>').join("");
   return `${orderControls}<table class="subtasks"><thead><tr><th>#</th><th>Subtask</th><th>Routed to</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
@@ -272,7 +273,7 @@ function diffHtml(d, plan) {
 }
 
 function historyHtml(events) {
-  return `<ol class="activity">${events.map(e => `<li><span class="ts">${esc(e.ts.replace("T", " ").slice(0, 16))}</span><span class="actor">${esc(e.actor)}</span><span>${esc(e.kind)} ${esc(e.message || "")}</span></li>`).join("")}</ol>`;
+  return `<ol class="activity">${events.map(e => `<li><span class="ts">${esc(Overview.local(e.ts))}</span><span class="actor">${esc(e.actor)}</span><span>${esc(e.kind)} ${esc(e.message || "")}</span></li>`).join("")}</ol>`;
 }
 
 async function showInitiative(id, tab, quiet = false) {
@@ -283,7 +284,7 @@ async function showInitiative(id, tab, quiet = false) {
   const i = d.initiative;
   openCard = { type: "init", id, tab: tab || openCard?.tab };
   $("#drawer-breadcrumbs").innerHTML='<a href="#/">Overview</a> / <a href="#/project/'+encodeURIComponent(i.project_name)+'">'+esc(i.project_name)+'</a> / #'+i.id;
-  $("#drawer-eyebrow").innerHTML = `<span class="stage ${AWAITING.has(i.stage) ? "awaiting" : ""}">${i.stage}</span>
+  $("#drawer-eyebrow").innerHTML = `<span class="stage ${AWAITING.has(i.stage) ? "awaiting" : ""}">${esc(Overview.plain(i.stage))}</span>
     <span class="cat cat-${i.category}">${CATEGORY_LABEL[i.category]}</span> · ${esc(i.project_name)} · #${i.id}
     ${i.assigned_model ? ` · ${esc(i.assigned_model)}` : ""}${i.branch_name ? ` · <code>${esc(i.branch_name)}</code>` : ""}`;
   $("#drawer-title").textContent = i.title;
@@ -307,6 +308,7 @@ async function showInitiative(id, tab, quiet = false) {
         <div class="hint">${i.stage === "lld_review" ? "Approving creates feat/" + esc(i.slug) + " in a separate worktree; your checkout is never switched. " : ""}Reject logs your note to TASTE_PROFILE.md.${warnBuild}</div>
       </div>`;
   $("#drawer-controls").insertAdjacentHTML("afterbegin", `<div class="controls"><label>Initiative priority <select id="initiative-priority">${["high","medium","low"].map(p=>`<option ${p===i.priority?"selected":""}>${p}</option>`).join("")}</select></label></div>`);
+  $("#drawer-controls").insertAdjacentHTML("afterbegin",Overview.preview("initiative",id,O?.forecast?.initiatives?.[String(id)]));
   $("#initiative-priority").onchange=async e=>{const b=e.target;b.disabled=true;try{await api(`/api/initiatives/${id}/priority`,{priority:b.value,expected_version:d.version});d.version=(await api(`/api/initiatives/${id}`)).version;toast("Priority saved");await refresh(true);}catch(err){toast(err.message,true);}finally{b.disabled=false;}};
   $("#drawer-controls").onclick = e => { const b = e.target.closest("[data-act]"); if (b) act(i, b.dataset.act); };
 
@@ -387,6 +389,7 @@ async function showProject(name, tab, quiet = false) {
         </div>
         <div class="hint">Either way, each agent must write a handoff note on the work it leaves before it may start here.</div>
       </div></div>`;
+  $("#drawer-controls").insertAdjacentHTML("afterbegin",Overview.preview("project",name,O?.forecast?.projects?.[name]));
   $("#project-priority").onchange=async e=>{const b=e.target;b.disabled=true;try{await api(`/api/projects/${encodeURIComponent(name)}`,{priority:b.value,expected_version:d.project_version});d.project_version=(await api(`/api/projects/${encodeURIComponent(name)}`)).project_version;toast("Priority saved");await refresh(true);}catch(err){toast(err.message,true);}finally{b.disabled=false;}};
   const dur = () => $("#dur-inf").checked ? 0 : (parseFloat($("#dur-n").value) || 0) * parseFloat($("#dur-unit").value);
   $("#spot").onclick = async () => {
@@ -401,7 +404,7 @@ async function showProject(name, tab, quiet = false) {
     try { await api(`/api/projects/${encodeURIComponent(name)}`, { complexity: e.target.value, expected_version:d.project_version }); toast("Saved"); refresh(true); }
     catch (err) { toast(err.message, true); }
   };
-  const inits = d.initiatives.map(i => `<li><a href="#card-${i.id}" data-init="${i.id}">#${i.id} ${esc(i.title)}</a> <span class="stage">${i.stage}</span></li>`).join("");
+  const inits = d.initiatives.map(i => `<li><a href="#card-${i.id}" data-init="${i.id}">#${i.id} ${esc(i.title)}</a> <span class="stage">${esc(Overview.plain(i.stage))}</span></li>`).join("");
   tabs([
     { key: "dossier", label: "Dossier", html: d.dossier_html && `<article class="md">${d.dossier_html}</article>` },
     { key: "scan", label: "Scan facts", html: d.scan && `<pre class="raw">${esc(JSON.stringify(d.scan, null, 2))}</pre>` },
@@ -481,7 +484,7 @@ async function showSubtask(iid,sid) {
     openCard={type:'subtask',id:iid,sid};
     $('#drawer-breadcrumbs').innerHTML='<a href="#/">Overview</a> / <a href="#/initiative/'+iid+'">Initiative #'+iid+'</a> / Subtask '+sid;
     $('#drawer-title').textContent=d.title;$('#drawer-eyebrow').textContent=(d.assignee||'unknown')+' · '+d.status;
-    $('#drawer-controls').innerHTML='';$('#drawer-tabs').innerHTML='';
+    $('#drawer-controls').innerHTML='<p class="estimate">'+Overview.eta(O?.forecast?.items?.['s:'+iid+':'+sid])+'</p>';$('#drawer-tabs').innerHTML='';
     $('#drawer-body').innerHTML='<h3>Instructions</h3><pre class="raw">'+esc(d.instructions)+'</pre><h3>Acceptance</h3><p>'+esc(d.acceptance)+'</p><h3>Verify</h3><code>'+esc(d.verify)+'</code><pre class="raw">'+esc(d.last_verify?.output_tail||'Not run')+'</pre><h3>Diff · '+esc(d.diff.basis)+'</h3><pre class="raw">'+esc(d.diff.patch||'See initiative Diff / tests for legacy changes.')+'</pre>'+(d.diff.href?'<p><a href="'+esc(d.diff.href)+'">View initiative-wide diff / tests</a></p>':'')+(d.diff.truncated?'<p>Patch truncated.</p>':'')+'<h3>History</h3>'+historyHtml(d.history)+(d.next_cursor?'<button class="btn" id="more-history">More history</button>':'');
     const more=$('#more-history');let cursor=d.next_cursor;if(more)more.onclick=async()=>{more.disabled=true;try{const page=await api('/api/initiatives/'+iid+'/subtasks/'+sid+'?before='+cursor);if(detailSequence.valid(seq)){more.insertAdjacentHTML('beforebegin',historyHtml(page.history));cursor=page.next_cursor;if(!cursor)more.remove();else more.disabled=false;}}catch(err){toast(err.message,true);more.disabled=false;}};
     openDrawer();
@@ -516,4 +519,19 @@ document.addEventListener('click',async e=>{
     O.pages[collection]=page.pages[collection];
     button.blur();Overview.update($('#view-overview'),O,project);
   }catch(err){toast(err.message,true);button.disabled=false;}
+});
+
+// GET-only counterfactual. Existing guarded priority POSTs are the only apply path.
+document.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-forecast-kind]');
+  if(!button||button.disabled)return;
+  const kind=button.dataset.forecastKind,target=button.dataset.forecastTarget;
+  const result=button.closest('.forecast-preview').querySelector('.forecast-result');
+  button.disabled=true;result.textContent='Calculating read-only priority preview…';
+  try {
+    const comparison=await api('/api/forecast/what-if?kind='+encodeURIComponent(kind)+'&target='+encodeURIComponent(target));
+    Overview.setComparison(kind,target,comparison);
+    if(button.isConnected)result.innerHTML=Overview.comparison(comparison);
+  }catch(error){if(button.isConnected)result.textContent=error.message;}
+  finally {if(button.isConnected)button.disabled=false;}
 });

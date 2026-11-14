@@ -10,7 +10,8 @@
   <header class="top">
     <div class="brand"><span class="dot" id="live-dot" title="live"></span> Portfolio Orchestrator</div>
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-view="pulse">Portfolio Pulse</button>
+      <button class="tab active" data-view="overview">Overview</button>
+      <button class="tab" data-view="pulse">Portfolio Pulse</button>
       <button class="tab" data-view="triage">Triage Board <span class="count" id="review-count"></span></button>
       <button class="tab" data-view="activity">Activity</button>
       <button class="tab" data-view="utilization">Utilization</button>
@@ -21,7 +22,17 @@
 
   <div id="spotlight-banner" class="spot-banner" hidden></div>
   <main>
-    <section id="view-pulse" class="view active">
+    <section id="view-overview" class="view active" aria-label="Overview">
+      <div class="toolbar"><h1>How are we doing?</h1><label>Project <select id="overview-filter"><option value="">All projects</option></select></label><a href="#/tab/triage">Producer inbox</a></div>
+      <div data-region="next" class="next-update"></div>
+      <div data-region="lanes" class="lane-grid"></div>
+      <div class="overview-columns"><div><section data-region="flight"></section><h2>Pending work</h2><div data-region="pending"></div></div>
+        <aside><h2>Attention needed</h2><div data-region="attention"></div><h2>Quota pace</h2><div data-region="quotas"></div><a href="#/tab/utilization">Quota / GPU history</a></aside></div>
+      <section><h2>Suggestions · orchestrator sparks</h2><div data-region="suggestions"></div>
+        <form id="idea-form"><h3>Add idea (creates a spark only)</h3><label>Title <input name="title" required maxlength="160"></label><label>Evidence and idea <textarea name="pitch" required maxlength="4000"></textarea></label><label>Category <select name="category"><option value="optimization">optimization</option><option value="tech_audacity">tech audacity</option><option value="visual_craft">visual craft</option><option value="fun_gameplay">fun / gameplay</option><option value="new_game">new game</option></select></label><button class="btn" type="submit">Add idea</button><span role="status" id="idea-status"></span></form>
+      </section>
+    </section>
+    <section id="view-pulse" class="view">
       <div class="toolbar">
         <input id="filter" type="search" placeholder="Filter projects…" aria-label="Filter projects">
         <label class="chk"><input type="checkbox" id="show-skip"> show skipped</label>
@@ -53,6 +64,7 @@
         </div>
         <button class="icon-btn" data-close aria-label="Close">✕</button>
       </header>
+      <nav id="drawer-breadcrumbs" class="breadcrumbs" aria-label="Breadcrumbs"></nav>
       <div id="drawer-controls"></div>
       <nav class="subtabs" id="drawer-tabs"></nav>
       <div class="drawer-body" id="drawer-body"></div>
@@ -60,6 +72,8 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
+  <script src="/static/overview.js"></script>
+  <script src="/static/navigation.js"></script>
   <script src="/static/app.js"></script>
   <script src="/static/utilization.js"></script>
 </body>

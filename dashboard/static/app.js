@@ -14,6 +14,11 @@ const CATEGORY_LABEL = {
 
 let S = null;          // last /api/state payload
 let version = "";
+let O = null;
+let refreshBusy = false;
+const detailSequence = Navigation.sequence();
+let returnFocus = null;
+let previousRoute = "#/";
 let openCard = null;   // {type: 'init'|'project', id}
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -49,6 +54,8 @@ function toast(msg, err = false) {
 /* ---------------- data loop ---------------- */
 
 async function refresh(force = false) {
+  if(refreshBusy) return;
+  refreshBusy=true;
   try {
     if (!force && S) {
       const v = await api("/api/version");
@@ -56,12 +63,19 @@ async function refresh(force = false) {
     }
     S = await api("/api/state");
     version = S.version;
+    O = await api("/api/overview");
+    const filter=$("#overview-filter");
+    if(!filter.matches(":focus")) {
+      const selected=filter.value;
+      filter.innerHTML='<option value="">All projects</option>'+O.projects.map(p=>'<option value="'+esc(p.repo_name)+'">'+esc(p.repo_name)+'</option>').join("");
+      filter.value=selected;
+    }
     $("#live-dot").className = "dot on";
     render();
-    if (openCard && !($("#note")?.value)) reopen();  // never clobber feedback being typed
+    // Detail is an explicit snapshot: polling never replaces forms or scroll.
   } catch (e) {
     $("#live-dot").className = "dot err";
-  }
+  } finally { refreshBusy=false; }
 }
 
 const untilText = u => (!u || u.startsWith("9999")) ? "indefinite (until ended)" : u.replace("T", " ").slice(0, 16);
@@ -78,6 +92,7 @@ function renderSpotlight() {
 
 function render() {
   renderSpotlight(); renderPulse(); renderBoard(); renderActivity();
+  if(O) Overview.update($("#view-overview"),O,$("#overview-filter").value);
   const waiting = S.initiatives.filter(i => AWAITING.has(i.stage)).length;
   $("#review-count").textContent = waiting || "";
   $("#meta").textContent = `${S.projects.length} projects · ${S.initiatives.length} initiatives · webhooks ${S.config.webhooks_enabled ? "on" : "off"}`;
@@ -105,10 +120,11 @@ function renderPulse() {
     const opts = S.enums.priorities.map(o => `<option ${o === p.priority ? "selected" : ""}>${o}</option>`).join("");
     return `<div class="pcard ${p.priority === "skip" ? "skip" : ""}">
       <div class="pcard-head">
-        <div class="pname" data-project="${esc(p.repo_name)}"><span class="pnum">${num(p.repo_name)}</span>${esc(short(p.repo_name))}</div>
+        <a class="pname" href="#/project/${encodeURIComponent(p.repo_name)}" data-project="${esc(p.repo_name)}"><span class="pnum">${num(p.repo_name)}</span>${esc(short(p.repo_name))}</a>
         <select class="prio" data-v="${p.priority}" data-prio="${esc(p.repo_name)}" aria-label="Priority">${opts}</select>
       </div>
       <div class="badges">
+        ${O?.projects.find(x=>x.repo_name===p.repo_name)?.recent_activity ? '<span class="badge">recent activity (not confirmed running)</span>' : ""}
         ${m.has("stack") && p.stack ? `<span class="badge stack">${esc(p.stack)}</span>` : ""}
         ${m.has("complexity") && p.complexity === "high" ? `<span class="badge high">high complexity</span>` : ""}
         ${!p.is_git ? `<span class="badge local">local only · no git</span>` : ""}
@@ -137,14 +153,14 @@ function cardHtml(i) {
   const awaiting = AWAITING.has(i.stage);
   const prog = i.plan_progress ? ` · ${i.plan_progress.done}/${i.plan_progress.total} subtasks` +
     (i.plan_progress.review && i.plan_progress.review !== "pending" ? ` · review ${i.plan_progress.review}` : "") : "";
-  return `<div class="card ${awaiting ? "awaiting" : "working"}" data-init="${i.id}" id="card-${i.id}">
+  return `<a href="#/initiative/${i.id}" class="card ${awaiting ? "awaiting" : ""}" data-init="${i.id}" id="card-${i.id}">
     <div class="card-sub"><span class="stage ${awaiting ? "awaiting" : ""}">${i.stage}</span>
       <span class="cat cat-${i.category}">${CATEGORY_LABEL[i.category]}</span>${i.complexity === "high" ? `<span class="cat" style="color:var(--violet)">· high</span>` : ""}</div>
     <div class="card-title">${esc(i.title)}</div>
     <div class="card-sub">${esc(i.project_name === "NEW_CONCEPT" ? "✦ new concept" : short(i.project_name))} · ${ago(i.updated_at)}${prog}</div>
     ${i.revision_note ? `<div class="card-sub" style="color:var(--warn)">↺ ${esc(i.revision_note.slice(0, 90))}</div>` : ""}
     ${i.claim ? `<div class="card-sub claim">💬 in chat: ${esc(i.claim)}</div>` : ""}
-  </div>`;
+  </a>`;
 }
 
 function renderBoard() {
@@ -176,10 +192,17 @@ async function loadTaste() {
 
 /* ---------------- drawer ---------------- */
 
-function openDrawer() { $("#drawer").hidden = false; document.body.style.overflow = "hidden"; }
+function openDrawer() {
+  const wasHidden=$("#drawer").hidden;
+  if(wasHidden) returnFocus=document.activeElement;
+  $("#drawer").hidden=false; document.body.style.overflow="hidden";
+  if(wasHidden) $("#drawer [data-close]").focus();
+}
 function closeDrawer() {
   $("#drawer").hidden = true; document.body.style.overflow = ""; openCard = null;
-  if (location.hash.startsWith("#card-")) history.replaceState(null, "", location.pathname);
+  detailSequence.next();
+  if(location.hash.includes("/initiative/") || location.hash.includes("/project/") || location.hash.startsWith("#card-")) location.hash=previousRoute;
+  if(returnFocus?.isConnected) returnFocus.focus(); else $('.tab[data-view="overview"]').focus();
 }
 function reopen() { openCard.type === "init" ? showInitiative(openCard.id, openCard.tab, true) : showProject(openCard.id, openCard.tab, true); }
 
@@ -196,14 +219,15 @@ function tabs(defs, active) {
   show(first);
 }
 
-function planHtml(plan) {
+function planHtml(plan,iid,planVersion) {
   if (!plan) return "";
-  const rows = (plan.subtasks || []).map(s => `<tr><td>${s.id}</td><td><b>${esc(s.title)}</b><div class="hint">${esc(s.instructions || "")}</div>
+  const rows = (plan.subtasks || []).map(s => `<tr><td>${s.id}</td><td><b><a href="#/initiative/${iid}/subtask/${s.id}">${esc(s.title)}</a></b><div class="hint">${esc(s.instructions || "")}</div>
     ${s.files?.length ? `<div class="hint">files: ${esc(s.files.join(", "))}</div>` : ""}
     ${s.notes ? `<pre class="raw">${esc(s.notes)}</pre>` : ""}</td>
     <td><span class="who who-${s.assignee}">${s.assignee}</span></td><td class="st-${s.status}">${s.status}</td></tr>`).join("");
   const r = plan.review || {};
-  return `<table class="subtasks"><thead><tr><th>#</th><th>Subtask</th><th>Routed to</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+  const orderControls='<p class="hint">Pending order changes implicit prerequisites. Done/doing positions stay fixed.</p>'+(plan.subtasks||[]).map((s,n)=>'<div class="reorder"><span>#'+s.id+' '+esc(s.title)+'</span>'+[[-1,"Up"],[1,"Down"]].map(([delta,label])=>'<button class="btn" data-reorder="'+iid+'" data-index="'+n+'" data-delta="'+delta+'" data-version="'+esc(planVersion)+'" data-order="'+esc(JSON.stringify(plan.subtasks.map(x=>x.id)))+'" '+(["done","doing"].includes(s.status)||n+delta<0||n+delta>=plan.subtasks.length?"disabled":"")+'>'+label+' #'+s.id+'</button>').join("")+'</div>').join("");
+  return `${orderControls}<table class="subtasks"><thead><tr><th>#</th><th>Subtask</th><th>Routed to</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
     ${plan.test_command ? `<p class="hint">Test command: <code>${esc(plan.test_command)}</code></p>` : ""}
     <p><b>Planner review:</b> <span class="st-${r.status === "pass" ? "done" : r.status === "fail" ? "blocked" : "todo"}">${esc(r.status || "pending")}</span> ${esc(r.notes || "")}</p>
     <details><summary class="hint">raw execution_plan_json</summary><pre class="raw">${esc(JSON.stringify(plan, null, 2))}</pre></details>`;
@@ -240,11 +264,13 @@ function historyHtml(events) {
 }
 
 async function showInitiative(id, tab, quiet = false) {
+  const seq=detailSequence.next();
   let d;
   try { d = await api(`/api/initiatives/${id}`); } catch (e) { return toast(e.message, true); }
+  if(!detailSequence.valid(seq)) return;
   const i = d.initiative;
   openCard = { type: "init", id, tab: tab || openCard?.tab };
-  if (!quiet) history.replaceState(null, "", `#card-${id}`);
+  $("#drawer-breadcrumbs").innerHTML='<a href="#/">Overview</a> / <a href="#/project/'+encodeURIComponent(i.project_name)+'">'+esc(i.project_name)+'</a> / #'+i.id;
   $("#drawer-eyebrow").innerHTML = `<span class="stage ${AWAITING.has(i.stage) ? "awaiting" : ""}">${i.stage}</span>
     <span class="cat cat-${i.category}">${CATEGORY_LABEL[i.category]}</span> · ${esc(i.project_name)} · #${i.id}
     ${i.assigned_model ? ` · ${esc(i.assigned_model)}` : ""}${i.branch_name ? ` · <code>${esc(i.branch_name)}</code>` : ""}`;
@@ -268,6 +294,8 @@ async function showInitiative(id, tab, quiet = false) {
         ${d.claim ? `<div class="hint claim">💬 Claimed by <b>${esc(d.claim)}</b> until ${esc((i.claim_expires_at || "").replace("T", " ").slice(0, 16))}${i.claim_note ? ` · ${esc(i.claim_note)}` : ""}. Scheduled agents skip it.</div>` : ""}
         <div class="hint">${i.stage === "lld_review" ? "Approving creates feat/" + esc(i.slug) + " in a separate worktree; your checkout is never switched. " : ""}Reject logs your note to TASTE_PROFILE.md.${warnBuild}</div>
       </div>`;
+  $("#drawer-controls").insertAdjacentHTML("afterbegin", `<div class="controls"><label>Initiative priority <select id="initiative-priority">${["high","medium","low"].map(p=>`<option ${p===i.priority?"selected":""}>${p}</option>`).join("")}</select></label></div>`);
+  $("#initiative-priority").onchange=async e=>{const b=e.target;b.disabled=true;try{await api(`/api/initiatives/${id}/priority`,{priority:b.value,expected_version:d.version});toast("Priority saved");await refresh(true);}catch(err){toast(err.message,true);}finally{b.disabled=false;}};
   $("#drawer-controls").onclick = e => { const b = e.target.closest("[data-act]"); if (b) act(i, b.dataset.act); };
 
   tabs([
@@ -275,7 +303,7 @@ async function showInitiative(id, tab, quiet = false) {
     { key: "pitch", label: "Pitch", html: `<article class="md">${d.pitch_html || ""}</article>` },
     { key: "hld", label: "HLD", html: d.hld_html && `<article class="md">${d.hld_html}</article>` },
     { key: "lld", label: "LLD", html: d.lld_html && `<article class="md">${d.lld_html}</article>` },
-    { key: "plan", label: "Execution routing", html: d.plan && planHtml(d.plan) },
+    { key: "plan", label: "Execution routing", html: d.plan && planHtml(d.plan,id,d.plan_version) },
     { key: "diff", label: "Diff / tests", html: diffHtml(d.diff, i.stage === "building" || i.stage === "playtest" || i.stage === "done" ? d.plan : null) },
     { key: "handoff", label: "IDE handoff", html: d.handoff_html && `<article class="md">${d.handoff_html}</article>` },
     { key: "rev", label: "Revisions", html: d.revisions_html && `<article class="md">${d.revisions_html}</article>` },
@@ -299,14 +327,18 @@ async function act(i, action) {
 }
 
 async function showProject(name, tab, quiet = false) {
+  const seq=detailSequence.next();
   let d;
   try { d = await api(`/api/projects/${encodeURIComponent(name)}`); } catch (e) { return toast(e.message, true); }
+  if(!detailSequence.valid(seq)) return;
   const p = d.project;
+  $("#drawer-breadcrumbs").innerHTML='<a href="#/">Overview</a> / '+esc(name);
   openCard = { type: "project", id: name, tab: tab || openCard?.tab };
   $("#drawer-eyebrow").innerHTML = `${esc(p.stack || "")} · priority ${p.priority} · ${p.complexity} complexity · scanned ${ago(p.last_scanned_at)}`;
   $("#drawer-title").textContent = p.repo_name;
   const cx = S.enums.complexities.map(o => `<option ${o === p.complexity ? "selected" : ""}>${o}</option>`).join("");
   $("#drawer-controls").innerHTML = `<div class="controls"><div class="row" style="align-items:center">
+      <label>Project priority <select id="project-priority">${["high","medium","low","skip"].map(pr=>`<option ${pr===p.priority?"selected":""}>${pr}</option>`).join("")}</select></label>
       <label class="hint">Complexity <select class="prio" id="cx">${cx}</select></label>
       <span class="hint">High routes HLDs to Opus.</span>
       ${p.url ? `<a href="${esc(p.url)}" target="_blank" rel="noopener" class="hint">${esc(p.url)}</a>` : `<span class="hint">no remote</span>`}
@@ -338,6 +370,7 @@ async function showProject(name, tab, quiet = false) {
         </div>
         <div class="hint">Either way, each agent must write a handoff note on the work it leaves before it may start here.</div>
       </div></div>`;
+  $("#project-priority").onchange=async e=>{const b=e.target;b.disabled=true;try{await api(`/api/projects/${encodeURIComponent(name)}`,{priority:b.value,expected_version:d.project_version});toast("Priority saved");await refresh(true);}catch(err){toast(err.message,true);}finally{b.disabled=false;}};
   const dur = () => $("#dur-inf").checked ? 0 : (parseFloat($("#dur-n").value) || 0) * parseFloat($("#dur-unit").value);
   $("#spot").onclick = async () => {
     const mode = $("#spot-mode").value;
@@ -367,6 +400,8 @@ async function showProject(name, tab, quiet = false) {
 document.addEventListener("click", e => {
   const tab = e.target.closest(".tab");
   if (tab) {
+    const targetHash=tab.dataset.view==="overview"?"#/":"#/tab/"+tab.dataset.view;
+    if(location.hash!==targetHash) location.hash=targetHash;
     document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t === tab));
     document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${tab.dataset.view}`));
     if (tab.dataset.view === "taste") loadTaste();
@@ -378,9 +413,9 @@ document.addEventListener("click", e => {
   }
   if (e.target.closest("[data-close]")) return closeDrawer();
   const card = e.target.closest("[data-init]");
-  if (card) { e.preventDefault(); return showInitiative(+card.dataset.init); }
+  if (card) { e.preventDefault(); previousRoute=Navigation.parse(location.hash).type==="project"?location.hash:"#/"; location.hash="#/initiative/"+card.dataset.init; return; }
   const pn = e.target.closest("[data-project]");
-  if (pn) return showProject(pn.dataset.project);
+  if (pn) {e.preventDefault();previousRoute="#/";location.hash="#/project/"+encodeURIComponent(pn.dataset.project);return;}
 });
 
 document.addEventListener("change", async e => {
@@ -391,16 +426,61 @@ document.addEventListener("change", async e => {
   catch (err) { toast(err.message, true); }
 });
 
-document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#drawer").hidden) closeDrawer(); });
+document.addEventListener("keydown", e => { if(!$("#drawer").hidden) {if(e.key==="Escape") closeDrawer();else Navigation.trap(e,$(".drawer-panel"));} });
 $("#filter").addEventListener("input", () => S && renderPulse());
 $("#show-skip").addEventListener("change", () => S && renderPulse());
 
 (async () => {
   await refresh(true);
-  const m = location.hash.match(/^#card-(\d+)/);
-  if (m) {
-    document.querySelector('.tab[data-view="triage"]').click();
-    showInitiative(+m[1]);
-  }
+  applyRoute();
   setInterval(refresh, (S?.config.poll_seconds || 4) * 1000);
 })();
+
+
+$("#overview-filter").onchange=()=>O && Overview.update($("#view-overview"),O,$("#overview-filter").value);
+let ideaToken=crypto.randomUUID();
+$("#idea-form").onsubmit=async e=>{
+  e.preventDefault();const form=e.currentTarget,b=form.querySelector('button');if(b.disabled)return;b.disabled=true;
+  const values=Object.fromEntries(new FormData(form));
+  try {const result=await api('/api/suggestions',{...values,idempotency_key:ideaToken});form.reset();ideaToken=crypto.randomUUID();$("#idea-status").textContent='Created spark #'+result.id;await refresh(true);}
+  catch(err){$("#idea-status").textContent=err.message;}finally{b.disabled=false;}
+};
+document.addEventListener('click',async e=>{
+  const lane=e.target.closest('[data-lane]'),order=e.target.closest('[data-reorder]');
+  const button=lane||order;if(!button||button.disabled)return;
+  if(lane && !confirm((lane.dataset.enabled==='true'?'Resume':'Pause')+' '+lane.dataset.lane+'? Affects future runs only; current work is not cancelled.'))return;
+  if(order && !confirm('Change pending order? This changes implicit prerequisites; completed and doing entries stay fixed.'))return;
+  button.disabled=true;
+  try {
+    if(lane)await api('/api/lanes/'+encodeURIComponent(lane.dataset.lane)+'/control',{enabled:lane.dataset.enabled==='true',expected_generation:+lane.dataset.generation});
+    else {const ids=JSON.parse(order.dataset.order),n=+order.dataset.index,m=n+(+order.dataset.delta);[ids[n],ids[m]]=[ids[m],ids[n]];await api('/api/initiatives/'+order.dataset.reorder+'/subtasks/reorder',{order:ids,expected_plan_version:order.dataset.version});}
+    toast('Saved');await refresh(true);if(order)showInitiative(+order.dataset.reorder,'plan',true);
+  }catch(err){toast(err.message,true);await refresh(true);}finally{button.disabled=false;}
+});
+async function showSubtask(iid,sid) {
+  const seq=detailSequence.next();
+  try {
+    const d=await api('/api/initiatives/'+iid+'/subtasks/'+sid);if(!detailSequence.valid(seq))return;
+    openCard={type:'subtask',id:iid,sid};
+    $('#drawer-breadcrumbs').innerHTML='<a href="#/">Overview</a> / <a href="#/initiative/'+iid+'">Initiative #'+iid+'</a> / Subtask '+sid;
+    $('#drawer-title').textContent=d.title;$('#drawer-eyebrow').textContent=(d.assignee||'unknown')+' · '+d.status;
+    $('#drawer-controls').innerHTML='';$('#drawer-tabs').innerHTML='';
+    $('#drawer-body').innerHTML='<h3>Instructions</h3><pre class="raw">'+esc(d.instructions)+'</pre><h3>Acceptance</h3><p>'+esc(d.acceptance)+'</p><h3>Verify</h3><code>'+esc(d.verify)+'</code><pre class="raw">'+esc(d.last_verify?.output_tail||'Not run')+'</pre><h3>Diff · '+esc(d.diff.basis)+'</h3><pre class="raw">'+esc(d.diff.patch||'See initiative Diff / tests for legacy changes.')+'</pre>'+(d.diff.truncated?'<p>Patch truncated.</p>':'')+'<h3>History</h3>'+historyHtml(d.history)+(d.next_cursor?'<button class="btn" id="more-history">More history</button>':'');
+    const more=$('#more-history');if(more)more.onclick=async()=>{more.disabled=true;try{const page=await api('/api/initiatives/'+iid+'/subtasks/'+sid+'?before='+d.next_cursor);if(detailSequence.valid(seq)){more.insertAdjacentHTML('beforebegin',historyHtml(page.history));more.remove();}}catch(err){toast(err.message,true);more.disabled=false;}};
+    openDrawer();
+  }catch(err){if(detailSequence.valid(seq))toast(err.message,true);}
+}
+function applyRoute() {
+  const route=Navigation.parse(location.hash);
+  if(route.type==='initiative')return showInitiative(route.id);
+  if(route.type==='subtask')return showSubtask(route.id,route.sid);
+  if(route.type==='project')return showProject(route.id);
+  if(!$('#drawer').hidden)closeDrawer();
+  const tab=route.type==='tab'?route.tab:'overview';
+  if(route.type==='not-found')toast('Route not found',true);
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.view===tab));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+tab));
+  if(tab==='taste')loadTaste();
+  if(window.Utilization)tab==='utilization'?Utilization.enter():Utilization.leave();
+}
+window.addEventListener('hashchange',applyRoute);

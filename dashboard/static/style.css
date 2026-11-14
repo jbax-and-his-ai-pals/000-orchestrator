@@ -194,3 +194,24 @@ input.dur { width: 80px; background: var(--panel-2); border: 1px solid var(--lin
 #view-utilization .util-summary { color: var(--muted); font-size: 12px; }
 @media (max-width: 850px) { #view-utilization .util-charts { grid-template-columns: 1fr; } }
 @media (max-width: 380px) { #view-utilization .util-tiles { grid-template-columns: minmax(0,1fr); } }
+
+/* Dashboard MVP: restrained typography and semantic status. */
+a {color:var(--accent,#7aa2ff)}
+:focus-visible {outline:2px solid #4cc9d8;outline-offset:3px}
+.next-update {border:1px solid #7aa2ff;border-radius:10px;padding:18px 22px;background:#182134;margin-bottom:18px}
+.next-time {font-size:1.35rem;color:#4cc9d8}
+.lane-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-bottom:24px}
+.lane,.pace {background:var(--panel,#171d29);border:1px solid var(--line,#30394b);border-radius:8px;padding:14px}
+.lane h2 {margin-top:0}.lane p,.pace p {font-size:12px;margin:8px 0;overflow-wrap:anywhere}
+.job {border-top:1px solid #30394b;padding-top:10px;margin-top:10px;font-size:11px}
+.estimate {color:#4cc9d8}.warning {color:#f2b84b}
+.overview-columns {display:grid;grid-template-columns:minmax(0,3fr) minmax(230px,1fr);gap:24px}
+.overview-columns aside {min-width:0}.pace {margin:10px 0}
+.table-scroll {overflow-x:auto}.subtasks td {overflow-wrap:anywhere;max-width:600px}
+#idea-form {max-width:750px;display:grid;gap:12px;padding:18px;border:1px solid #30394b;border-radius:8px}
+#idea-form label {display:grid;gap:6px}#idea-form textarea {min-height:100px}#idea-form input,#idea-form textarea,#idea-form select,#overview-filter {background:#101522;color:#e3e9f5;border:1px solid #465269;padding:8px;border-radius:5px}
+a.card {display:block;text-decoration:none;color:inherit}.pname {text-decoration:none}
+.breadcrumbs {display:flex;gap:10px;flex-wrap:wrap;padding:8px 16px}
+.reorder {display:flex;gap:8px;align-items:center;margin:8px 0}
+@media(max-width:680px) {.overview-columns {grid-template-columns:1fr}.top {flex-wrap:wrap}.tabs {overflow-x:auto;max-width:100%}}
+@media(prefers-reduced-motion:reduce) {*,*::before,*::after {animation:none!important;transition:none!important;scroll-behavior:auto!important}}

@@ -30,11 +30,15 @@ def lane_control(orch,declaration,enabled,expected,actor,controller=None):
         job=next((j for j in current if j['declaration']==declaration),None)
         if not job or job['id']!=before['id'] or job['enabled']!=before['enabled']:
             raise steering.Conflict('scheduler changed; refresh')
+        write_error=None
         if job['enabled']!=enabled:
-            controller.set(job['id'],enabled)
+            try: controller.set(job['id'],enabled)
+            except Exception as exc: write_error=exc
         after=controller.read()
         actual=next((j for j in after if j['declaration']==declaration),None)
-        if not actual or actual['enabled']!=enabled: raise orch.OrchError('scheduler outcome not confirmed')
+        if not actual or actual['enabled']!=enabled:
+            if write_error: raise write_error
+            raise orch.OrchError('scheduler outcome not confirmed')
         outcome='confirmed'
         lane.save(store,after)
         return {'outcome':outcome,'declaration':declaration,'enabled':actual['enabled'],'affects':'future runs only'}

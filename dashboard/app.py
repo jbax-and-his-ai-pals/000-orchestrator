@@ -74,7 +74,11 @@ def read_md(path: str | Path | None) -> str | None:
 
 def state_version() -> str:
     paths = [orch.DB_PATH, orch.DB_PATH.with_name(orch.DB_PATH.name + "-wal"), orch.TASTE, orch.CONFIG]
-    return ":".join(str(p.stat().st_mtime_ns) if p.exists() else "0" for p in paths)
+    with orch.db() as con:
+        generations = [con.execute("SELECT COALESCE(MAX(rowid),0) FROM metrics").fetchone()[0],
+                       con.execute("SELECT COALESCE(SUM(generation),0) FROM lane_observations").fetchone()[0],
+                       con.execute("SELECT COALESCE(MAX(id),0) FROM events").fetchone()[0]]
+    return ":".join([*(str(p.stat().st_mtime_ns) if p.exists() else "0" for p in paths),*map(str,generations)])
 
 
 @app.exception_handler(orch.OrchError)

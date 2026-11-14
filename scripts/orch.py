@@ -609,6 +609,14 @@ def smoke(name: str, actor: str = "scout") -> dict:
     return result
 
 
+def frontier_author(path: Path) -> str | None:
+    """The non-Gemma author named on a dossier's `_Author: <actor> · ...` line, if any."""
+    if not path.exists():
+        return None
+    m = re.search(r"^_Author:\s*([\w.-]+)", path.read_text(encoding="utf-8", errors="replace")[:600], re.M)
+    return m.group(1) if m and m.group(1) not in SCOUT_ACTORS else None
+
+
 def write_dossier(name: str, text: str, actor: str, fields: dict | None = None) -> Path:
     with db() as con:
         get_project(con, name)
@@ -621,23 +629,33 @@ def write_dossier(name: str, text: str, actor: str, fields: dict | None = None) 
                             "and fill every section (write 'unknown' rather than dropping a heading).")
         if len(text) > 12000:
             raise OrchError("dossier rejected: over 12000 characters. Summarize; the facts live in SCAN.json.")
-        fields = fields or {}
+    fields = fields or {}
 
-        def section(h):
-            m = re.search(rf"{re.escape(h)}\s*\n(.*?)(?=\n## |\Z)", text, re.S | re.I)
-            return (m.group(1) if m else "").strip().lower()
-        exp = section("## Player experience")
-        if exp and not exp.startswith("unknown"):
-            m = re.search(r"## Player experience\s*\n(.*?)(?=\n## |\Z)", text, re.S | re.I)
-            fields["player_experience"] = " ".join(m.group(1).split())[:1200]
-        if fields.get("playability_score") is not None and section("## Core loop") in ("", "unknown", "unknown."):
+    def section(h):
+        m = re.search(rf"{re.escape(h)}\s*\n(.*?)(?=\n## |\Z)", text, re.S | re.I)
+        return (m.group(1) if m else "").strip()
+    exp = section("## Player experience")
+    if exp and not exp.lower().startswith("unknown"):
+        fields["player_experience"] = " ".join(exp.split())[:1200]
+    d = DOSSIERS / name
+    if actor in SCOUT_ACTORS and frontier_author(d / "DOSSIER.md"):
+        # A frontier agent wrote the current dossier: Gemma's template refresh must not flatten it or its scores.
+        d.mkdir(parents=True, exist_ok=True)
+        side = d / "DOSSIER.gemma.md"
+        side.write_text(text.rstrip() + "\n", encoding="utf-8")
+        with db(write=True) as con:
+            con.execute("UPDATE projects SET last_scanned_at=? WHERE repo_name=?", (now(), name))
+            log_event(con, actor, "dossier", "frontier DOSSIER.md kept; refresh saved as DOSSIER.gemma.md", name)
+        return side
+    if actor in SCOUT_ACTORS:
+        loop, visual = section("## Core loop").lower(), section("## Visual cohesion").lower()
+        if fields.get("playability_score") is not None and loop in ("", "unknown", "unknown."):
             raise OrchError("dossier rejected: Core loop is unknown, so leave out --playability (no evidence to score).")
-        if fields.get("visual_maturity") is not None and section("## Visual cohesion").startswith("no evidence"):
+        if fields.get("visual_maturity") is not None and visual.startswith("no evidence"):
             raise OrchError("dossier rejected: Visual cohesion has no evidence, so leave out --visual.")
-        if fields.get("playability_score") == 0 and len(section("## Core loop")) > 40:
+        if fields.get("playability_score") == 0 and len(loop) > 40:
             raise OrchError("dossier rejected: playability 0 means nothing runs, but your Core loop describes one. "
                             "Score it 3-10, or leave out --playability.")
-    d = DOSSIERS / name
     d.mkdir(parents=True, exist_ok=True)
     path = d / "DOSSIER.md"
     path.write_text(text.rstrip() + "\n", encoding="utf-8")

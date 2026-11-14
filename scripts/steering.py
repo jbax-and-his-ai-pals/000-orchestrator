@@ -1,4 +1,5 @@
 """Pure steering validation. No database or process side effects."""
+import datetime as dt
 import hashlib
 import json
 
@@ -52,9 +53,15 @@ def eligibility(init, project, spot, now, due=False, finishing=False):
     """Shared hard exclusions. Caller supplies clock and graceful-finish evidence."""
     if project.get('priority') == 'skip' and not finishing:
         return 'project skipped'
-    if init.get('claimed_by') and (init.get('claim_expires_at') or '') > now:
+    def active(value):
+        try:
+            expiry=dt.datetime.fromisoformat(value.replace('Z','+00:00'))
+            current=dt.datetime.fromisoformat(now.replace('Z','+00:00'))
+            return expiry.tzinfo is not None and current.tzinfo is not None and expiry>current
+        except (ValueError,AttributeError): return False
+    if init.get('claimed_by') and active(init.get('claim_expires_at')):
         return 'claimed in chat'
-    if project.get('focus_by') and (project.get('focus_until') or '') > now:
+    if project.get('focus_by') and active(project.get('focus_until')):
         return 'project focus'
     if spot:
         if init['project_name'] != spot['project'] and not finishing:

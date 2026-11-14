@@ -60,7 +60,7 @@ class SteeringTests(unittest.TestCase):
         self.assertNotIn(2,[x['initiative'] for x in orch.queue('planner')['subtasks']])
     def test_focus_spotlight_handoff_exclusions(self):
         i={'project_name':'a'}
-        self.assertEqual(steering.eligibility(i,{'focus_by':'chat','focus_until':'9999'},None,'2026'),'project focus')
+        self.assertEqual(steering.eligibility(i,{'focus_by':'chat','focus_until':'9999-01-01T00:00:00+00:00'},None,'2026-01-01T00:00:00+00:00'),'project focus')
         self.assertEqual(steering.eligibility(i,{}, {'project':'b'},'2026'),'outside spotlight')
         self.assertIsNone(steering.eligibility(i,{}, {'project':'b'},'2026',finishing=True))
         self.assertEqual(steering.eligibility(i,{}, {'project':'a'},'2026',due=True),'handoff due')

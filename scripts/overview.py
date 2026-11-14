@@ -35,7 +35,9 @@ def durations(events,now):
             sid=int(match[1]); status=match[2]; token='legacy'
         key=(actor,event['initiative_id'],sid,token)
         if status=='doing':
-            if key not in starts: starts[key]=at
+            overlaps=[k for k in starts if k[:3]==key[:3] and k!=key]
+            for other in overlaps: starts[other]=None
+            if key not in starts: starts[key]=None if overlaps else at
             elif token=='legacy': starts[key]=None
         elif status in ('done','blocked') and key in starts:
             start=starts.pop(key)
@@ -94,19 +96,23 @@ def snapshot(orch,clock=None):
             cached=(time.monotonic(),durations(events,now)); _cache.clear(); _cache[cache_key]=cached
     samples=cached[1]
     by_project={p['repo_name']:p for p in projects}
+    histories={}
+    for event in events:
+        histories.setdefault(event.get('initiative_id'),[]).append(event)
     spot=orch.get_spotlight()
+    due_by_actor={actor:orch.handoffs_due(spot,actor) for actor in ("gemma","codex","claude","gemini")}
     rows=[]; pending={k:[] for k in ('sparks','queued','blocked','producer')}; attention=[]; suggestions=[]
     def add_attention(row,reason):
         attention.append({'key':str(row.get('key',row.get('initiative_id')))+':'+reason,'reason':reason,'href':row.get('href','#/'),'title':row.get('title',reason)})
     for i in inits:
         project=by_project.get(i['project_name'],{})
-        history=[e for e in events if e.get('initiative_id')==i['id']]
+        history=histories.get(i['id'],[])
         stage_events=[e for e in history if e['kind']=='stage:'+i['stage']]
         entered=stage_events[0]['ts'] if stage_events else None
         claim=i.get('claimed_by') if (date(i.get('claim_expires_at')) or now)<=now else i.get('claimed_by')
         if not date(i.get('claim_expires_at')) or date(i['claim_expires_at'])<=now: claim=None
         owner=claim or {'hld_draft':'claude','lld_draft':'codex'}.get(i['stage'])
-        reason=steering.eligibility(i,project,spot,orch.now(),False,orch.finishing(spot,i['id']))
+        reason=steering.eligibility(i,project,spot,u.stamp(now),bool(due_by_actor.get(owner)),orch.finishing(spot,i['id']))
         base={'key':'i:'+str(i['id']),'initiative_id':i['id'],'subtask_id':None,'project':i['project_name'],
               'title':i['title'],'stage':i['stage'],'status':i['stage'],'owner':owner,'owner_basis':'claim' if claim else 'stage_route' if owner else 'unknown',
               'created_at':i['created_at'],'stage_entered_at':entered,'age_basis':'stage_entry' if entered else 'creation_fallback',
@@ -123,14 +129,29 @@ def snapshot(orch,clock=None):
         if plan.get('review',{}).get('status')=='fail': add_attention(base,'review failed')
         for sub in subs:
             if sub.get('status')=='done': continue
-            blocked=reason or ('initiative not building' if i['stage']!='building' else None) or ('explicitly blocked' if sub.get('status')=='blocked' else None) or ('dependency wait' if not orch.ready(sub,subs) else None)
+            blocked=reason or ('handoff due' if due_by_actor.get(sub.get('assignee')) and spot and i['project_name']==spot['project'] else None) or ('initiative not building' if i['stage']!='building' else None) or ('explicitly blocked' if sub.get('status')=='blocked' else None) or ('dependency wait' if not orch.ready(sub,subs) else None)
             row={**base,'key':'s:'+str(i['id'])+':'+str(sub['id']),'subtask_id':sub['id'],'title':sub['title'],
                  'status':sub.get('status','todo'),'owner':claim or sub.get('assignee'),'owner_basis':'claim' if claim else 'plan',
                  'eligibility':blocked or 'eligible','href':base['href']+'/subtask/'+str(sub['id'])}
+            changes=[]
+            for event in history:
+                try: details=json.loads(event.get('details_json') or '{}')
+                except ValueError: details={}
+                if details.get('subtask_id')==sub['id'] and details.get('to')==sub.get('status') and details.get('from')!=details.get('to'):
+                    changes.append(event)
+            if changes:
+                row.update(stage_entered_at=changes[0]['ts'],age_basis='subtask_status_entry',age_seconds=max(0,(now-(date(changes[0]['ts']) or now)).total_seconds()))
             if sub.get('status')=='doing': rows.append(row)
             else: pending['blocked' if blocked else 'queued'].append(row)
             if sub.get('status')=='blocked': add_attention(row,'explicitly blocked')
             if sub.get('last_verify',{}).get('ok') is False: add_attention(row,'verification failed')
+    for actor,items in due_by_actor.items():
+        for item in items:
+            add_attention({'key':'handoff:'+str(item['initiative'])+':'+actor,'href':'#/initiative/'+str(item['initiative']),'title':actor+' handoff'},'handoff note due')
+    for provider,windows in quotas.items():
+        for window,metric in windows.items():
+            if metric['status'] in ('stale','error'):
+                add_attention({'key':provider+':'+window,'href':'#/tab/utilization','title':provider+' '+window},'quota '+metric['status'])
     lanes=lane_status.lanes(observation,now)
     queues={}
     # The actual dispatch interface is authoritative for first candidate and handoff precedence.
@@ -142,6 +163,8 @@ def snapshot(orch,clock=None):
             windows=quotas[provider]
             lane['quota']={'state':'exhausted' if any(m['status']=='ok' and m['value']==0 for m in windows.values()) else 'observed' if any(m['status']=='ok' for m in windows.values()) else 'unknown','windows':windows}
         if lane['key']=='gemma': lane['residency']=local
+        recent=next((e for e in events if ACTORS.get(e['actor'])==lane['key'] and date(e['ts']) and 0<=(now-date(e['ts'])).total_seconds()<=600),None)
+        lane['recent_activity']={'at':recent['ts'],'initiative_id':recent.get('initiative_id'),'basis':'recent event, not confirmed running'} if recent else None
         for job in lane['jobs']:
             candidate=None; queue=queues.get('claude-high' if job['declaration'].endswith('-opus') else lane['key'],{})
             if queue.get('handoffs_due') or queue.get('job')=='handoff':
@@ -155,8 +178,8 @@ def snapshot(orch,clock=None):
             elif queue.get('job')=='subtask': candidate=queue; kind='build'
             fresh=observation['status']=='ok'
             start=job.get('started_at') if fresh else None
-            if start and candidate and candidate.get('subtask',{}).get('status') != 'doing':
-                candidate=None  # a running cron alone does not identify a task
+            if start:
+                candidate=None  # cron cannot prove which queued task is executing
             if not start and fresh and job['enabled']: start=job.get('next_run_at')
             if start and date(start)<now and not job.get('started_at'): start=None
             if lane['quota']['state']=='exhausted': start=None
@@ -182,3 +205,21 @@ def snapshot(orch,clock=None):
             'history_truncated':len(events)>=10000,'lanes':lanes,'next_update':min(estimates,key=lambda e:e['completion_at']) if estimates else {'state':'unknown','next_check_at':min(next_checks,default=None)},
             'in_flight':rows,'pending':pending,'attention':list({a['key']:a for a in attention}.values()),'suggestions':suggestions,'projects':projects,'spotlight':spot,
             'totals':{'initiatives':len(inits),'in_flight_rows':len(rows),'pending_rows':sum(map(len,pending.values()))}}
+
+
+def paged(report,project='',collection=None,offset=0,limit=200):
+    """Explicit collection cursors keep initial JSON bounded without omitting inventory."""
+    collections={'in_flight':report['in_flight'],'suggestions':report['suggestions'],
+                 **{'pending.'+k:v for k,v in report['pending'].items()}}
+    if collection and collection not in collections: raise ValueError('unknown overview collection')
+    pages={}
+    for key,items in collections.items():
+        selected=[r for r in items if not project or r['project']==project]
+        start=offset if collection==key else 0
+        rows=selected[start:start+limit]
+        pages[key]={'total':len(selected),'offset':start,'next_cursor':start+len(rows) if start+len(rows)<len(selected) else None}
+        if key.startswith('pending.'): report['pending'][key.split('.')[1]]=rows
+        else: report[key]=rows
+    report['pages']=pages
+    report['project_filter']=project
+    return report

@@ -5,6 +5,9 @@
 from __future__ import annotations
 
 import json
+import html
+from html.parser import HTMLParser
+from urllib.parse import urlsplit
 from contextlib import asynccontextmanager
 import sys
 from pathlib import Path
@@ -60,7 +63,22 @@ def render_md(text: str) -> str:
     # Agent-written markdown is untrusted: drop raw-HTML passthrough so it renders as text.
     md.preprocessors.deregister("html_block")
     md.inlinePatterns.deregister("html")
-    return md.convert(text)
+    class SafeLinks(HTMLParser):
+        def __init__(self): super().__init__(convert_charrefs=False); self.parts=[]
+        def handle_starttag(self,tag,attrs):
+            cleaned=[]
+            for key,value in attrs:
+                if key.lower().startswith('on'): continue
+                if key in ('href','src'):
+                    compact=''.join(c for c in html.unescape(value or '') if ord(c)>32)
+                    if urlsplit(compact).scheme.lower() not in ('','http','https','mailto'): continue
+                cleaned.append(' '+key+'="'+html.escape(value or '',quote=True)+'"')
+            self.parts.append('<'+tag+''.join(cleaned)+'>')
+        def handle_endtag(self,tag): self.parts.append('</'+tag+'>')
+        def handle_data(self,data): self.parts.append(data)
+        def handle_entityref(self,name): self.parts.append('&'+name+';')
+        def handle_charref(self,name): self.parts.append('&#'+name+';')
+    clean=SafeLinks(); clean.feed(md.convert(text)); return ''.join(clean.parts)
 
 
 def read_md(path: str | Path | None) -> str | None:
@@ -273,11 +291,14 @@ app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
 
 @app.get('/api/overview')
-def overview_api():
+def overview_api(project:str="",collection:str|None=None,offset:int=0,limit:int=200):
+    if offset<0 or not 1<=limit<=200: raise HTTPException(422,"invalid page bounds")
     try:
-        result=overview.snapshot(orch)
+        result=overview.paged(overview.snapshot(orch),project,collection,offset,limit)
         result['portfolio_version']=state_version()
         return result
+    except ValueError as exc:
+        raise HTTPException(422,str(exc))
     except utilization.sqlite3.Error:
         return JSONResponse({'error':'db_busy'},status_code=503)
 

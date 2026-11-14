@@ -19,6 +19,7 @@ let refreshBusy = false;
 const detailSequence = Navigation.sequence();
 let returnFocus = null;
 let previousRoute = "#/";
+let lastAppliedRoute = "#/";
 let openCard = null;   // {type: 'init'|'project', id}
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -63,7 +64,18 @@ async function refresh(force = false) {
     }
     S = await api("/api/state");
     version = S.version;
-    O = await api("/api/overview");
+    const oldOverview=O, filterValue=$("#overview-filter").value;
+    O = await api("/api/overview?project="+encodeURIComponent(filterValue));
+    if(oldOverview?.project_filter===filterValue) {
+      for(const collection of Object.keys(O.pages)) {
+        const items=(report,key)=>key.startsWith('pending.')?report.pending[key.split('.')[1]]:report[key];
+        const previousCount=items(oldOverview,collection).length;
+        while(items(O,collection).length<previousCount && O.pages[collection].next_cursor!=null) {
+          const page=await api('/api/overview?project='+encodeURIComponent(filterValue)+'&collection='+encodeURIComponent(collection)+'&offset='+O.pages[collection].next_cursor);
+          items(O,collection).push(...items(page,collection));O.pages[collection]=page.pages[collection];
+        }
+      }
+    }
     const filter=$("#overview-filter");
     if(!filter.matches(":focus")) {
       const selected=filter.value;
@@ -295,7 +307,7 @@ async function showInitiative(id, tab, quiet = false) {
         <div class="hint">${i.stage === "lld_review" ? "Approving creates feat/" + esc(i.slug) + " in a separate worktree; your checkout is never switched. " : ""}Reject logs your note to TASTE_PROFILE.md.${warnBuild}</div>
       </div>`;
   $("#drawer-controls").insertAdjacentHTML("afterbegin", `<div class="controls"><label>Initiative priority <select id="initiative-priority">${["high","medium","low"].map(p=>`<option ${p===i.priority?"selected":""}>${p}</option>`).join("")}</select></label></div>`);
-  $("#initiative-priority").onchange=async e=>{const b=e.target;b.disabled=true;try{await api(`/api/initiatives/${id}/priority`,{priority:b.value,expected_version:d.version});toast("Priority saved");await refresh(true);}catch(err){toast(err.message,true);}finally{b.disabled=false;}};
+  $("#initiative-priority").onchange=async e=>{const b=e.target;b.disabled=true;try{await api(`/api/initiatives/${id}/priority`,{priority:b.value,expected_version:d.version});d.version=(await api(`/api/initiatives/${id}`)).version;toast("Priority saved");await refresh(true);}catch(err){toast(err.message,true);}finally{b.disabled=false;}};
   $("#drawer-controls").onclick = e => { const b = e.target.closest("[data-act]"); if (b) act(i, b.dataset.act); };
 
   tabs([
@@ -313,17 +325,22 @@ async function showInitiative(id, tab, quiet = false) {
   openDrawer();
 }
 
+let actionBusy=false;
 async function act(i, action) {
+  if(actionBusy)return;
   const note = ($("#note")?.value || "").trim();
   if ((action === "revise" || action === "reject") && !note) return toast("Write feedback first: it goes to the agents" + (action === "reject" ? " and the taste profile." : "."), true);
   if (action === "reject" && !confirm(`Kill "${i.title}"?${i.branch_name ? `\nThis deletes ${i.branch_name} and its worktree.` : ""}`)) return;
+  actionBusy=true;
+  $("#drawer-controls").querySelectorAll("[data-act]").forEach(b=>b.disabled=true);
   try {
     const r = await api(`/api/initiatives/${i.id}/${action}`, { note });
     toast(action === "claim" ? `#${i.id} claimed for chat; agents will skip it`
       : action === "release" ? `#${i.id} released to agents` : `#${i.id} → ${r.stage}`);
     await refresh(true);
+    if($("#note"))$("#note").value="";
     showInitiative(i.id, null, true);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) { toast(e.message, true); } finally {actionBusy=false;$("#drawer-controls").querySelectorAll("[data-act]").forEach(b=>b.disabled=false);}
 }
 
 async function showProject(name, tab, quiet = false) {
@@ -370,7 +387,7 @@ async function showProject(name, tab, quiet = false) {
         </div>
         <div class="hint">Either way, each agent must write a handoff note on the work it leaves before it may start here.</div>
       </div></div>`;
-  $("#project-priority").onchange=async e=>{const b=e.target;b.disabled=true;try{await api(`/api/projects/${encodeURIComponent(name)}`,{priority:b.value,expected_version:d.project_version});toast("Priority saved");await refresh(true);}catch(err){toast(err.message,true);}finally{b.disabled=false;}};
+  $("#project-priority").onchange=async e=>{const b=e.target;b.disabled=true;try{await api(`/api/projects/${encodeURIComponent(name)}`,{priority:b.value,expected_version:d.project_version});d.project_version=(await api(`/api/projects/${encodeURIComponent(name)}`)).project_version;toast("Priority saved");await refresh(true);}catch(err){toast(err.message,true);}finally{b.disabled=false;}};
   const dur = () => $("#dur-inf").checked ? 0 : (parseFloat($("#dur-n").value) || 0) * parseFloat($("#dur-unit").value);
   $("#spot").onclick = async () => {
     const mode = $("#spot-mode").value;
@@ -381,7 +398,7 @@ async function showProject(name, tab, quiet = false) {
   if (fb) fb.onclick = async () => { try { await api(`/api/projects/${encodeURIComponent(name)}/focus`, { hours: dur(), note: "" }); toast("Focus session started; agents will skip it"); await refresh(true); showProject(name, null, true); } catch (e) { toast(e.message, true); } };
   if (ub) ub.onclick = async () => { try { await api(`/api/projects/${encodeURIComponent(name)}/unfocus`, {}); toast("Focus ended; agents resume"); await refresh(true); showProject(name, null, true); } catch (e) { toast(e.message, true); } };
   $("#cx").onchange = async e => {
-    try { await api(`/api/projects/${encodeURIComponent(name)}`, { complexity: e.target.value }); toast("Saved"); refresh(true); }
+    try { await api(`/api/projects/${encodeURIComponent(name)}`, { complexity: e.target.value, expected_version:d.project_version }); toast("Saved"); refresh(true); }
     catch (err) { toast(err.message, true); }
   };
   const inits = d.initiatives.map(i => `<li><a href="#card-${i.id}" data-init="${i.id}">#${i.id} ${esc(i.title)}</a> <span class="stage">${i.stage}</span></li>`).join("");
@@ -422,7 +439,7 @@ document.addEventListener("change", async e => {
   const sel = e.target.closest("[data-prio]");
   if (!sel) return;
   sel.dataset.v = sel.value;
-  try { await api(`/api/projects/${encodeURIComponent(sel.dataset.prio)}`, { priority: sel.value }); toast(`${short(sel.dataset.prio)} → ${sel.value}`); refresh(true); }
+  try { await api(`/api/projects/${encodeURIComponent(sel.dataset.prio)}`, { priority: sel.value, expected_version:O?.projects.find(p=>p.repo_name===sel.dataset.prio)?.version }); toast(`${short(sel.dataset.prio)} → ${sel.value}`); refresh(true); }
   catch (err) { toast(err.message, true); }
 });
 
@@ -437,7 +454,7 @@ $("#show-skip").addEventListener("change", () => S && renderPulse());
 })();
 
 
-$("#overview-filter").onchange=()=>O && Overview.update($("#view-overview"),O,$("#overview-filter").value);
+$("#overview-filter").onchange=()=>refresh(true);
 let ideaToken=crypto.randomUUID();
 $("#idea-form").onsubmit=async e=>{
   e.preventDefault();const form=e.currentTarget,b=form.querySelector('button');if(b.disabled)return;b.disabled=true;
@@ -466,12 +483,14 @@ async function showSubtask(iid,sid) {
     $('#drawer-title').textContent=d.title;$('#drawer-eyebrow').textContent=(d.assignee||'unknown')+' · '+d.status;
     $('#drawer-controls').innerHTML='';$('#drawer-tabs').innerHTML='';
     $('#drawer-body').innerHTML='<h3>Instructions</h3><pre class="raw">'+esc(d.instructions)+'</pre><h3>Acceptance</h3><p>'+esc(d.acceptance)+'</p><h3>Verify</h3><code>'+esc(d.verify)+'</code><pre class="raw">'+esc(d.last_verify?.output_tail||'Not run')+'</pre><h3>Diff · '+esc(d.diff.basis)+'</h3><pre class="raw">'+esc(d.diff.patch||'See initiative Diff / tests for legacy changes.')+'</pre>'+(d.diff.truncated?'<p>Patch truncated.</p>':'')+'<h3>History</h3>'+historyHtml(d.history)+(d.next_cursor?'<button class="btn" id="more-history">More history</button>':'');
-    const more=$('#more-history');if(more)more.onclick=async()=>{more.disabled=true;try{const page=await api('/api/initiatives/'+iid+'/subtasks/'+sid+'?before='+d.next_cursor);if(detailSequence.valid(seq)){more.insertAdjacentHTML('beforebegin',historyHtml(page.history));more.remove();}}catch(err){toast(err.message,true);more.disabled=false;}};
+    const more=$('#more-history');let cursor=d.next_cursor;if(more)more.onclick=async()=>{more.disabled=true;try{const page=await api('/api/initiatives/'+iid+'/subtasks/'+sid+'?before='+cursor);if(detailSequence.valid(seq)){more.insertAdjacentHTML('beforebegin',historyHtml(page.history));cursor=page.next_cursor;if(!cursor)more.remove();else more.disabled=false;}}catch(err){toast(err.message,true);more.disabled=false;}};
     openDrawer();
   }catch(err){if(detailSequence.valid(seq))toast(err.message,true);}
 }
 function applyRoute() {
   const route=Navigation.parse(location.hash);
+  if(location.hash!==lastAppliedRoute && ["initiative","project","subtask"].includes(route.type)) previousRoute=lastAppliedRoute;
+  lastAppliedRoute=location.hash||"#/";
   if(route.type==='initiative')return showInitiative(route.id);
   if(route.type==='subtask')return showSubtask(route.id,route.sid);
   if(route.type==='project')return showProject(route.id);
@@ -484,3 +503,17 @@ function applyRoute() {
   if(window.Utilization)tab==='utilization'?Utilization.enter():Utilization.leave();
 }
 window.addEventListener('hashchange',applyRoute);
+
+// Fetch further inventory pages only on demand; every count includes unloaded rows.
+document.addEventListener('click',async e=>{
+  const button=e.target.closest('[data-more]');if(!button||button.disabled)return;button.disabled=true;
+  const project=$('#overview-filter').value,collection=button.dataset.more;
+  try {
+    const page=await api('/api/overview?project='+encodeURIComponent(project)+'&collection='+encodeURIComponent(collection)+'&offset='+button.dataset.offset);
+    if(project!==$('#overview-filter').value)return;
+    if(collection.startsWith('pending.'))O.pending[collection.split('.')[1]].push(...page.pending[collection.split('.')[1]]);
+    else O[collection].push(...page[collection]);
+    O.pages[collection]=page.pages[collection];
+    button.blur();Overview.update($('#view-overview'),O,project);
+  }catch(err){toast(err.message,true);button.disabled=false;}
+});

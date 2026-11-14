@@ -217,16 +217,24 @@ def command_output(name, args, timeout):
                                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     buffers = [bytearray(),bytearray()]
     oversized = threading.Event()
+    capture_lock=threading.Lock()
+    def terminate():
+        if os.name=="nt" and process.poll() is None:
+            try:
+                subprocess.run([str(Path(os.environ.get("SystemRoot","C:/Windows"))/"System32"/"taskkill.exe"),"/PID",str(process.pid),"/T","/F"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=2)
+            except (OSError,subprocess.TimeoutExpired): pass
+        process.kill()
     def drain(pipe, target):
         try:
             while True:
                 chunk = pipe.read(8192)
                 if not chunk: break
-                if len(target)+len(chunk)>limit:
-                    oversized.set()
-                    process.kill()
-                    break
-                target.extend(chunk)
+                with capture_lock:
+                    if sum(map(len,buffers))+len(chunk)>limit:
+                        oversized.set()
+                        terminate()
+                        break
+                    target.extend(chunk)
         finally:
             pipe.close()
     threads = [threading.Thread(target=drain,args=(pipe,buffers[n]),daemon=True)
@@ -241,7 +249,7 @@ def command_output(name, args, timeout):
         if process.returncode: raise CollectorError('unavailable')
         return buffers[0].decode('utf-8',errors='replace')
     except BaseException:
-        process.kill()
+        terminate()
         process.wait(timeout=2)
         raise
 

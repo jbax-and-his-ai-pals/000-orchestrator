@@ -675,6 +675,8 @@ def add_spark(project: str, category: str, title: str, pitch: str, actor: str,
         if idempotency is not None:
             if not re.fullmatch(r"[a-zA-Z0-9-]{8,100}",idempotency): raise OrchError("invalid idempotency key")
             receipt = "idea:"+idempotency
+            cutoff=(dt.datetime.now().astimezone()-dt.timedelta(days=7)).isoformat(timespec="seconds")
+            con.execute("DELETE FROM settings WHERE key LIKE 'idea:%' AND json_extract(value,'$.at')<?",(cutoff,))
             saved = con.execute("SELECT value FROM settings WHERE key=?",(receipt,)).fetchone()
             if saved:
                 data = json.loads(saved[0])
@@ -1546,6 +1548,8 @@ def commit(iid: int, message: str, actor: str, sub_id: int | None = None) -> str
         raise OrchError(f"#{iid} has no active build worktree")
     wt = Path(init["worktree_path"])
     guard(wt)
+    if sub_id is not None:
+        _subtask(init,sub_id)
     if actor in SCOUT_ACTORS:
         if sub_id is None:
             raise OrchError("gemma commits must name the subtask: orch.py commit <id> --sub <n> -m ...")

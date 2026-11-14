@@ -18,6 +18,8 @@ class SecurityTests(api.DashboardAPITests):
     def test_markdown_raw_html_is_escaped(self):
         rendered=api.app.render_md('<script>alert(1)</script>\n<img src=x onerror=alert(1)>')
         self.assertNotIn('<script>',rendered); self.assertNotIn('<img ',rendered)
+        self.assertNotIn('href="javascript:',api.app.render_md('[bad](javascript:alert)'))
+        self.assertNotIn('href="data:',api.app.render_md('[bad](data:text/html,bad)'))
     def test_metric_only_version_change(self):
         first=api.app.state_version()
         u.Store(orch.DB_PATH).insert('gpu',[{'key':'util_pct','value':10}])

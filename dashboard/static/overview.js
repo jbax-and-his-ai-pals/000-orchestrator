@@ -23,6 +23,7 @@
     const card=e.initiative_id?'#'+e.initiative_id+' ':'';
     if(e.work_type==='scan') return who+' refreshes the '+e.project+' dossier';
     if(e.work_type==='facts') return who+' refreshes facts (scan + smoke) for '+e.project;
+    if(e.work_type==='issue') return who+' works the '+e.project+' issue into a proposed fix';
     if(e.work_type==='build') return who+' builds “'+e.title+'” ('+card+'subtask '+e.subtask_id+')';
     return who+' starts the '+plain(e.work_type)+' for '+card+e.title;
   }

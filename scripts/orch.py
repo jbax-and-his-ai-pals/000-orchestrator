@@ -1834,13 +1834,11 @@ def queue(agent: str) -> dict:
             solve = issues_to_solve(con, spot, now())
     result = queue_from_snapshot(agent, inits, projects, spot, now(),
         {actor:handoffs_due(spot,actor) for actor in ("gemma","codex","claude")},
-        {i["id"] for i in inits if finishing(spot,i["id"])})
+        {i["id"] for i in inits if finishing(spot,i["id"])}, solve)
     items = result.get("subtasks", []) + ([result] if result.get("job")=="subtask" else [])
     for item in items:
         if item.get("worktree"):
             item["new_files"] = [f for f in item["subtask"].get("files", []) if not (Path(item["worktree"]) / f).exists()]
-    if agent in ("planner", "architect"):
-        result["issues_to_solve"] = solve
     return result
 
 
@@ -1849,7 +1847,7 @@ def scout_job(project: str) -> str:
     return "facts" if frontier_author(DOSSIERS / project / "DOSSIER.md") else "scan"
 
 
-def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing_ids=()):
+def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing_ids=(), issues=None):
     """Pure dispatch boundary shared by live queues and read-only forecasting."""
     due = due or {}
     projects = [p for p in projects if p.get("priority") != "skip"]
@@ -1904,6 +1902,7 @@ def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing
         respark = [brief(i) for i in inits if i["stage"] == "spark" and i["revision_note"]]
         return {"spotlight": spot, "handoffs_due": due.get("claude", []), "hld_to_draft": hld, "sparks_needing_rework": respark if not want_high else [],
                 "open_sparks": sum(1 for i in inits if i["stage"] == "spark"),
+                "issues_to_solve": list(issues or []) if not want_high else [],
                 "subtasks": subtasks_for("claude") if not want_high else []}
     if agent == "planner":
         lld = [brief(i) for i in inits if i["stage"] == "lld_draft"]
@@ -1915,7 +1914,8 @@ def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing
             work = [s for s in plan["subtasks"] if s["assignee"] != "ide_handoff"]
             if work and all(s["status"] == "done" for s in work) and plan.get("review", {}).get("status") != "pass":
                 review.append(brief(i))
-        return {"spotlight": spot, "handoffs_due": due.get("codex", []), "lld_to_draft": lld, "branches_to_review": review, "subtasks": subtasks_for("codex")}
+        return {"spotlight": spot, "handoffs_due": due.get("codex", []), "lld_to_draft": lld, "branches_to_review": review,
+                "subtasks": subtasks_for("codex"), "issues_to_solve": list(issues or [])}
     raise OrchError("agent must be scout|architect|architect-high|planner")
 
 

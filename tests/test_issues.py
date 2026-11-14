@@ -76,6 +76,14 @@ class IssueTests(unittest.TestCase):
         orch.update_project('a', {'priority': 'medium'}, 'producer')
         self.assertEqual(len(orch.queue('planner')['issues_to_solve']), 1)
 
+    def test_forecast_sees_issue_work(self):
+        import forecast
+        issue = {'id': 7, 'project_name': 'a', 'title': 'No tests.', 'status': 'triage', 'attempts': 0, 'note': None}
+        q = orch.queue_from_snapshot('planner', [], [], None, orch.now(), issues=[issue])
+        self.assertEqual(forecast.pick(q), ('issue', issue))
+        self.assertEqual(orch.queue_from_snapshot('architect-high', [], [], None, orch.now(), issues=[issue])['issues_to_solve'], [])
+        self.assertIsNone(forecast.pick(orch.queue_from_snapshot('planner', [], [], None, orch.now())))
+
     def test_attempt_cap_sends_to_producer(self):
         self.dossier('No tests.')
         iid = orch.list_issues()[0]['id']

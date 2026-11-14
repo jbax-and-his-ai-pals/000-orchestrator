@@ -74,17 +74,21 @@
   const VERB={'branch to playtest':'Playtest','HLD to review':'Review HLD','LLD + plan to review':'Review LLD + plan','pitch to approve':'Approve pitch','quota stale':'Refresh quota reading'};
   function quotaClass(v){return v==null?'':v<20?'bad':v<50?'warn':'good';}
   function kpis(data) {
-    const t=data.rollups?.totals||{},q=k=>(data.lanes||[]).find(l=>l.key===k)?.quota?.windows?.['5h']?.value;
+    const t=data.rollups?.totals||{},q=(k,w='5h')=>(data.lanes||[]).find(l=>l.key===k)?.quota?.windows?.[w]?.value;
     const pct=v=>v==null?'—':Math.round(v)+'%';
-    const tile=(n,label,cls,href)=>'<'+(href?'a href="'+href+'"':'div')+' class="kpi '+(cls||'')+'"><strong>'+esc(n)+'</strong><span>'+esc(label)+'</span></'+(href?'a':'div')+'>';
+    const tile=(n,label,cls,href,sub)=>'<'+(href?'a href="'+href+'"':'div')+' class="kpi '+(cls||'')+'"><strong>'+esc(n)+'</strong><span>'+esc(label)+'</span>'+(sub?'<em>'+sub+'</em>':'')+'</'+(href?'a':'div')+'>';
+    const wk=k=>{const v=q(k,'weekly');return 'weekly <b class="'+quotaClass(v)+'-t">'+esc(pct(v))+'</b> left';};
+    const g=data.gemini_free_tier||{};
+    const gem=g.exhausted?['Exhausted','bad','hit a 429 · resets '+until(g.resets_at)]:[g.runs_today?g.runs_today+' runs':'Unused','good','free tier today · resets '+until(g.resets_at)];
     return tile(t.waiting_on_producer??0,'Waiting on you',t.waiting_on_producer?'warn':'','#/tab/triage')
       +tile(t.in_flight??0,'In flight','teal','#/tab/activity')
       +tile(t.queued_subtasks??0,'Queued subtasks')
       +tile(t.blocked??0,'Blocked',t.blocked?'bad':'','#/tab/work')
       +tile(t.open_initiatives??0,'Open initiatives','','#/tab/work')
       +tile((t.subtasks_done??0)+'/'+(t.subtasks_total??0),'Subtasks done')
-      +tile(pct(q('codex')),'Codex 5h left',quotaClass(q('codex')))
-      +tile(pct(q('claude')),'Claude 5h left',quotaClass(q('claude')));
+      +tile(pct(q('codex')),'Codex 5h left',quotaClass(q('codex')),'#/tab/utilization',wk('codex'))
+      +tile(pct(q('claude')),'Claude 5h left',quotaClass(q('claude')),'#/tab/utilization',wk('claude'))
+      +tile(gem[0],'Gemini',gem[1],'#/tab/utilization',esc(gem[2]));
   }
   const STAGE={spark:'pitch',hld_draft:'drafting HLD',hld_review:'HLD review',lld_draft:'drafting LLD',lld_review:'LLD review',building:'building',playtest:'playtest'};
   function ago(iso){const m=Math.round((Date.now()-Date.parse(iso))/60000);return !Number.isFinite(m)?'':m<1?'just now':m<60?m+' min ago':Math.floor(m/60)+' hr '+(m%60)+' min ago';}

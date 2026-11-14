@@ -117,6 +117,30 @@ def _next_update(model,estimates,next_checks):
     if estimates: return {**min(estimates,key=lambda e:e['completion_at']),'next_check_at':check}
     return {'state':'unknown','next_check_at':check}
 
+def _gemini_free_tier(events,now):
+    """Gemini free tier resets daily at midnight Pacific. Exhausted = a logged 429 since the last reset."""
+    def pacific_offset(at):  # US rule: PDT from 2nd Sunday of March 10:00 UTC to 1st Sunday of November 09:00 UTC
+        def sunday(month,n):
+            d=dt.datetime(at.year,month,1,tzinfo=dt.timezone.utc); d+=dt.timedelta(days=(6-d.weekday())%7)
+            return d+dt.timedelta(weeks=n-1)
+        start=sunday(3,2)+dt.timedelta(hours=10); end=sunday(11,1)+dt.timedelta(hours=9)
+        return dt.timedelta(hours=-7 if start<=at<end else -8)
+    now=now.astimezone(dt.timezone.utc); off=pacific_offset(now)
+    local_now=now+off
+    reset=(local_now.replace(hour=0,minute=0,second=0,microsecond=0)-off).replace(tzinfo=dt.timezone.utc)
+    runs=0; last_429=None
+    for e in events:
+        if e.get('actor')!='reviewer-gemini': continue
+        at=date(e.get('ts'))
+        if not at or at<reset or at>now: continue
+        runs+=1
+        if re.search(r'(?<!\d)429(?!\d)',str(e.get('kind',''))+' '+str(e.get('message') or '')):
+            last_429=max(last_429 or at,at)
+    nxt=reset+dt.timedelta(days=1)
+    nxt+=off-pacific_offset(nxt)  # keep midnight across a DST change
+    return {'runs_today':runs,'exhausted':bool(last_429),'last_429_at':u.stamp(last_429) if last_429 else None,
+            'resets_at':u.stamp(nxt),'basis':'logged reviewer-gemini events since midnight PT'}
+
 def snapshot(orch,clock=None,bump=None):
     now=u.utc(clock() if clock else dt.datetime.now(u.UTC))
     with orch.db() as con:
@@ -288,7 +312,7 @@ def snapshot(orch,clock=None,bump=None):
     return {'schema_version':1,'generated_at':u.stamp(now),'telemetry_generation':str(observation['generation'])+':'+str(metric_generation),
             'history_truncated':len(events)>=10000,'lanes':lanes,'next_update':_next_update(model,estimates,next_checks),
             'confirmed_active':sorted(confirmed_active),'in_flight':rows,'pending':pending,'attention':list({a['key']:a for a in attention}.values()),'suggestions':suggestions,'projects':projects,'spotlight':spot,
-            'forecast':model,'rollups':rollup,'what_if':comparison,
+            'forecast':model,'rollups':rollup,'what_if':comparison,'gemini_free_tier':_gemini_free_tier(events,now),
             'totals':{'initiatives':len(inits),'in_flight_rows':len(rows),'pending_rows':sum(map(len,pending.values()))}}
 
 

@@ -24,6 +24,9 @@ _Last updated: 2026-11-13 21:00 PT_
   pass per repo with `logs/seed-claude-brief.md` (after Claude 5h reset 22:30 PT), then queue [gemma] milestone bullets.
   w4 (011, 012, 016, 018, rerouted from Antigravity) running 20:30. Gemma-overwrite guard
   merged 20:22 (main, `feat/frontier-dossier-guard`). Spark #11 (Gemma stabs) filed.
+  Dashboard now shows chat-launched runs (merged 20:40, `feat/dispatch-visibility`): wrap every chat dispatch in
+  `ORCH dispatch start|end --lane <lane> --run <id> --label "..."` (seed_codex.sh does). 009's run predates the
+  launcher change: run `ORCH dispatch end --lane codex --run seed-009-vr-baseball` when it ends.
 
 ## Roadmap (producer, 2026-11-13)
 1. ~~#8 dashboard MVP~~ (shipped). 2. Harden the orchestrator to use every resource fully, on every project.

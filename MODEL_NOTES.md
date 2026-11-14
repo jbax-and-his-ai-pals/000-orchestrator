@@ -65,3 +65,11 @@ Update this after any dispatch that teaches something.
   Lesson: give Codex the producer's ranked priorities and concrete example output strings in the brief, and require
   labeled fallbacks over "unknown".
 - Quota: after this build, Codex weekly was at 27% used against an even-burn pace of 18% (over pace).
+
+### 2026-11-13: project seeding, Codex deep dossiers (brief: logs/seed-codex-brief.md)
+- ~3 min per repo, 4 in parallel without trouble. Quality high: read code, ran headless, recorded measured numbers
+  (003: generation timings and counts), and caught a false-green smoke (exit 0 despite parse errors in a fresh
+  checkout without editor import). Left every producer checkout untouched.
+- Prompting that worked: exact heading skeleton with example strings, labeled fallbacks instead of "unknown",
+  lane-tagged milestone bullets.
+

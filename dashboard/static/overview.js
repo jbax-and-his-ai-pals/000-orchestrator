@@ -22,6 +22,7 @@
     const who={'scout-gemma':'Gemma','planner-codex':'Codex','architect-claude':'Claude'}[owner(e.actor)]||owner(e.actor);
     const card=e.initiative_id?'#'+e.initiative_id+' ':'';
     if(e.work_type==='scan') return who+' refreshes the '+e.project+' dossier';
+    if(e.work_type==='facts') return who+' refreshes facts (scan + smoke) for '+e.project;
     if(e.work_type==='build') return who+' builds “'+e.title+'” ('+card+'subtask '+e.subtask_id+')';
     return who+' starts the '+plain(e.work_type)+' for '+card+e.title;
   }
@@ -155,6 +156,10 @@
         const c=l.claims||[];cls=c.length?'busy':'idle';
         text=c.length?'working with you on '+c.map(c=>'#'+c.initiative_id+' '+c.title+(c.note?' ('+c.note+')':'')).join('; '):'idle';
         href=c[0]?.href||'';
+      } else if(l.dispatches?.length){
+        const d=l.dispatches,first=d[0];
+        text='working from chat: '+(d.length===1?first.label:d.length+' runs ('+d.slice(0,3).map(r=>r.label).join(', ')+(d.length>3?', …':'')+')')+' since '+clock(first.started_at);
+        cls='busy';href=first.project?'#/project/'+encodeURIComponent(first.project):'';
       } else if(l.activity?.task_ref){
         const row=(data.in_flight||[]).find(r=>owner(r.owner)===owner(l.key));
         text='working on '+l.activity.task_ref+(l.activity.started_at?' since '+clock(l.activity.started_at):'')+(row?' · '+detail(row):'');
@@ -162,7 +167,7 @@
         if(paused) extra=' (scheduled runs off after this one)';
       } else if(paused){
         const waiting=waitingOn(data,name);cls='paused';
-        if(l.key==='gemini') text='not scheduled: you run Gemini yourself in Antigravity';
+        if(l.key==='gemini') text='parked: no scheduled runs (the free-tier API lane is off)';
         else if(waiting.length){text='scheduled runs off · '+waiting.length+' item(s) need '+name+': ask me in chat to run it';href=waiting[0].href;}
         else text='scheduled runs off · nothing needs it right now';
       } else if(next){text='next: '+describe(next)+', '+until(next.start_at);cls='idle';href=next.href;}

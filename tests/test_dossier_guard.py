@@ -54,6 +54,29 @@ class DossierGuardTests(unittest.TestCase):
         self.assertEqual(out.name, 'DOSSIER.md')
         self.assertIn('fresh', self.dossier.read_text(encoding='utf-8'))
 
+    def test_gemma_fallback_refreshes_facts_only_for_frontier_dossiers(self):
+        self.assertEqual(orch.scout_job('a'), 'scan')
+        orch.write_dossier('a', DEEP_TEXT, 'planner-codex')
+        self.assertEqual(orch.scout_job('a'), 'facts')
+        with orch.db(write=True) as con:
+            con.execute("UPDATE projects SET last_scanned_at=NULL")
+        self.assertEqual(orch.queue('scout')['job'], 'facts')
+
+
+class DispatchTests(unittest.TestCase):
+    def test_open_runs_only(self):
+        import datetime as dt, json
+        import overview
+        now = dt.datetime(2026, 11, 13, 21, 0, tzinfo=dt.timezone.utc)
+        ts = lambda m: (now - dt.timedelta(minutes=m)).isoformat()
+        ev = lambda kind, run, m, lane='codex': {'kind': kind, 'ts': ts(m), 'project_name': 'p',
+                                                 'details_json': json.dumps({'lane': lane, 'run': run, 'label': 'seed ' + run})}
+        events = [ev('dispatch_end', 'a', 1), ev('dispatch_start', 'a', 5), ev('dispatch_start', 'b', 4),
+                  ev('dispatch_start', 'c', 3, 'claude'), ev('dispatch_start', 'old', 60 * 13)]
+        runs = overview.dispatches(events, 'codex', now)
+        self.assertEqual([r['run'] for r in runs], ['b'])
+        self.assertEqual(runs[0]['label'], 'seed b')
+
 
 if __name__ == '__main__':
     unittest.main()

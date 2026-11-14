@@ -32,6 +32,8 @@ ORCH queue scout
 - `"job": "handoff"`: go to **Job H** (at the bottom).
 - `"job": "subtask"`: go to **Job B**.
 - `"job": "scan"`: go to **Job A** with the given `project`.
+- `"job": "facts"`: a frontier agent owns this dossier. Run `ORCH scan <project>`, then `ORCH smoke <project>`, then stop.
+  Do not write a dossier.
 - `"project": null`: run `ORCH log "nothing to do"` and stop.
 
 ## Job A: dossier for one project

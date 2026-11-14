@@ -46,6 +46,19 @@ def durations(events,now):
                 samples.append({'actor':actor,'work_type':'build','seconds':(at-start).total_seconds()})
     return samples
 
+def dispatches(events,lane,now,window=12*3600):
+    """Runs the conductor launched from chat (orch.py dispatch start/end) that have started but not ended."""
+    started,ended={},set()
+    for e in events:
+        if e.get('kind') not in ('dispatch_start','dispatch_end'): continue
+        try: d=json.loads(e.get('details_json') or '{}')
+        except ValueError: continue
+        if d.get('lane')!=lane or not d.get('run'): continue
+        if e['kind']=='dispatch_end': ended.add(d['run'])
+        elif date(e['ts']) and 0<=(now-date(e['ts'])).total_seconds()<=window:
+            started.setdefault(d['run'],{'run':d['run'],'label':d.get('label') or d['run'],'project':e.get('project_name'),'started_at':e['ts']})
+    return sorted((r for k,r in started.items() if k not in ended),key=lambda r:r['started_at'])
+
 def typical(samples,actor,work_type):
     return forecast.duration(samples,actor,work_type)
 
@@ -303,6 +316,7 @@ def snapshot(orch,clock=None,bump=None):
         comparison=forecast.compare(model,changed,bump[0],bump[1])
     claims=[{'initiative_id':i['id'],'title':i['title'],'owner':i['claimed_by'],'note':i.get('claim_note'),'href':'#/initiative/'+str(i['id'])} for i in inits if i.get('claimed_by') and date(i.get('claim_expires_at')) and date(i['claim_expires_at'])>now]
     focus=[{'project':p['repo_name'],'owner':p['focus_by'],'href':'#/project/'+quote(p['repo_name'],safe='')} for p in projects if p.get('focus_by') and date(p.get('focus_until')) and date(p['focus_until'])>now]
+    for lane in lanes: lane['dispatches']=dispatches(events,lane['key'],now)
     lanes.append({'key':'chat','label':'Chat','jobs':[],'activity':{'state':'claimed/in chat' if claims or focus else 'no claims','basis':'ownership, not process'},'claims':claims,'focus':focus,'scheduler':{'state':'none','next_run_at':None},'quota':{'state':'unknown'},'estimate':{'state':'unknown','reason':'chat has no schedule'}})
     estimates=[l['estimate'] for l in lanes if l['estimate'].get('completion_at')]
     next_checks=[l['scheduler']['next_run_at'] for l in lanes if l['scheduler'].get('next_run_at') and date(l['scheduler']['next_run_at'])>=now]

@@ -1664,6 +1664,11 @@ def queue(agent: str) -> dict:
     return result
 
 
+def scout_job(project: str) -> str:
+    """Gemma's refresh for a project: a whole dossier, or only the facts (SCAN/SMOKE) when a frontier agent wrote it."""
+    return "facts" if frontier_author(DOSSIERS / project / "DOSSIER.md") else "scan"
+
+
 def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing_ids=()):
     """Pure dispatch boundary shared by live queues and read-only forecasting."""
     due = due or {}
@@ -1707,11 +1712,11 @@ def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing
             p = next((x for x in projects if x["repo_name"] == spot["project"]), None)
             fresh = p and steering.recent(p.get("last_scanned_at"),clock,6*3600)
             if p and not fresh:
-                return {"job": "scan", "project": p["repo_name"], "spotlight": spot}
+                return {"job": scout_job(p["repo_name"]), "project": p["repo_name"], "spotlight": spot}
         # Gemma is free, so it is never idle: otherwise refresh the stalest dossier not scanned in the last 6h
         # (priority first, then oldest scan). Focused projects are already excluded above.
         stale = [x for x in projects if not steering.recent(x.get("last_scanned_at"),clock,6*3600)]
-        job = {"job": "scan", "project": stale[0]["repo_name"] if stale else None}
+        job = {"job": scout_job(stale[0]["repo_name"]) if stale else "scan", "project": stale[0]["repo_name"] if stale else None}
         return {**job, "spotlight": spot, "fallback": True} if spot else job
     if agent in ("architect", "architect-high"):
         want_high = agent == "architect-high"
@@ -1869,6 +1874,12 @@ def main(argv: list[str] | None = None) -> int:
     s = sp.add_parser("rehome", help="attach a NEW_CONCEPT card to a repo")
     s.add_argument("id", type=int)
     s.add_argument("project")
+    s = sp.add_parser("dispatch", help="record a run launched from chat, so the dashboard shows it")
+    s.add_argument("phase", choices=["start", "end"])
+    s.add_argument("--lane", required=True, choices=["gemma", "codex", "claude", "gemini"])
+    s.add_argument("--run", required=True, help="unique id shared by the start and end records")
+    s.add_argument("--label", default="", help="what the run does, e.g. 'seed 004-vr-soccer dossier'")
+    s.add_argument("--project")
     s = sp.add_parser("log", help="record agent activity")
     s.add_argument("message")
     s.add_argument("--project")
@@ -1994,6 +2005,11 @@ def main(argv: list[str] | None = None) -> int:
             out = reject(a.id, a.note, actor)
         elif a.cmd == "rehome":
             out = rehome(a.id, a.project, actor)
+        elif a.cmd == "dispatch":
+            with db(write=True) as con:
+                log_event(con, actor, "dispatch_" + a.phase, a.label or a.run, a.project, None,
+                          {"lane": a.lane, "run": a.run, "label": a.label})
+            out = {"ok": True}
         elif a.cmd == "log":
             with db(write=True) as con:
                 log_event(con, actor, "note", a.message, a.project, a.initiative)

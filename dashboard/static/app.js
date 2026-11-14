@@ -367,13 +367,16 @@ async function showInitiative(id, tab, quiet = false) {
 
   const closed = i.stage === "done" || i.stage === "rejected";
   const nextLabel = d.next_stage ? `Approve → ${d.next_stage}` : "Approve";
+  const drafting = i.stage === "hld_draft" && !i.hld_path ? "The HLD" : i.stage === "lld_draft" && !i.lld_path ? "The LLD and plan" : "";
   const warnBuild = i.stage === "building" || i.branch_name ? " Deletes the feat branch and its worktree." : "";
   $("#drawer-controls").innerHTML = closed
     ? `<div class="controls"><div class="hint">${i.stage === "rejected" ? `Rejected: ${esc(i.rejection_reason || "")}` : "Done."}</div></div>`
     : `<div class="controls">
         <textarea id="note" placeholder="Feedback (required for revise / reject; optional note on approve)"></textarea>
         <div class="row">
-          <button class="btn go" data-act="advance" ${d.next_stage ? "" : "disabled"}>${nextLabel}</button>
+          ${drafting
+            ? `<span class="hint">${drafting} is being written by an agent. Nothing to approve yet: it comes back to you for review.</span>`
+            : `<button class="btn go" data-act="advance" ${d.next_stage ? "" : "disabled"}>${nextLabel}</button>`}
           <button class="btn rev" data-act="revise">Request revision${d.revise_to && d.revise_to !== i.stage ? ` → ${d.revise_to}` : ""}</button>
           <button class="btn kill" data-act="reject">Reject / Kill</button>
           ${d.claim

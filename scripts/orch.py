@@ -1502,6 +1502,12 @@ def advance(iid: int, actor: str = "producer", note: str = "") -> dict:
         nxt = ADVANCE.get(init["stage"])
         if not nxt:
             raise OrchError(f"#{iid} is {init['stage']}; nothing to advance to")
+        if init["stage"] == "hld_draft" and not init.get("hld_path"):
+            raise OrchError(f"#{iid}: the HLD hasn't been written yet, so there's nothing to approve. "
+                            "An agent drafts it; it comes back to you at HLD review.")
+        if init["stage"] == "lld_draft" and not init.get("lld_path"):
+            raise OrchError(f"#{iid}: the LLD and plan haven't been written yet, so there's nothing to approve. "
+                            "Codex drafts them; they come back to you at LLD review.")
         if nxt == "building":
             if init["project_name"] == "NEW_CONCEPT":
                 raise OrchError("NEW_CONCEPT has no repo yet. Create the repo, then re-home the card "

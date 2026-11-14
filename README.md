@@ -103,4 +103,17 @@ _orchestrator\.venv\Scripts\python.exe _orchestrator\scripts\orch.py --help
 orch.py projects | initiatives | show <id> | queue scout|architect|planner
 orch.py scan <repo> | smoke <repo>
 orch.py sync-repos [--dry-run]      # clone org repos missing locally; never touches existing ones
+orch.py dispatch start|end --lane <lane> --run <id> --label "..."   # show a chat-launched run in Agents Now
+orch.py issues [--status s] [--project p]                          # bottleneck issues (Triage Board)
+orch.py issue-claim <id> | issue-propose <id> --category c --title t --pitch @f | issue-release <id> --to retry|producer|dismiss|reopen --note n
+orch.py issues-autosolve on|off     # producer's switch: let Codex/Claude queues pick up issues
+orch.py backfill-issues             # one-off after upgrade: issues from current bottlenecks, descriptions from dossiers
 ```
+
+### Bottleneck issues
+
+Every `write-dossier --bottleneck` raises (or updates) one live **issue** per project; the Pulse shows the
+description and player experience, never the bottleneck. With `issues-autosolve on`, Codex and Claude take one
+issue per run: `issue-claim`, read the dossier and code, then `issue-propose` files the fix as a spark on that
+project (it lands on the Triage Board like any pitch). Rejecting that spark reopens the issue with the reason;
+three failed attempts send it to `needs_producer`. Issue work is not yet in the forecast or Agents Now.

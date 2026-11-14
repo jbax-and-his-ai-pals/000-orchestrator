@@ -135,7 +135,7 @@ def state():
         events = orch.rows(con, "SELECT * FROM events ORDER BY id DESC LIMIT 60")
         latest = {r["project_name"]: r for r in orch.rows(
             con, "SELECT e.* FROM events e JOIN (SELECT project_name, MAX(id) mid FROM events "
-                 "WHERE project_name IS NOT NULL AND actor != 'init' GROUP BY project_name) m ON e.id = m.mid")}
+                 "WHERE project_name IS NOT NULL AND actor != 'init' AND kind != 'issue' GROUP BY project_name) m ON e.id = m.mid")}
     for p in projects:
         p["focus"] = orch.active_focus(p)
         p["latest_activity"] = latest.get(p["repo_name"])

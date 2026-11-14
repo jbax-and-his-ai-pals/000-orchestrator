@@ -95,3 +95,7 @@ Bold orchestrator improvements and quota-saving ideas are welcome as sparks, not
 Within the current spotlight/categories, pitch at most two with observed evidence, expected benefit,
 implementation/maintenance cost and validation. Producer gates remain mandatory; never approve your own
 ideas, alter routing policy automatically or relax GEMMA_CAPABILITIES.md to save quota.
+
+Deployment: after an approved orchestrator ship, the conductor regenerates workspaces with
+`python scripts/sync_playbooks.py --install` from the deployed checkout. Feature BUILD tests explicit
+source/destination roots only; never default-export stale live workspaces over canonical edits.

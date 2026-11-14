@@ -69,3 +69,12 @@ def eligibility(init, project, spot, now, due=False, finishing=False):
         if init['project_name'] == spot['project'] and due:
             return 'handoff due'
     return None
+
+
+def recent(value, now, seconds):
+    """Aware comparison, including mixed UTC/local-offset observations."""
+    try:
+        at=dt.datetime.fromisoformat(value.replace('Z','+00:00'))
+        current=dt.datetime.fromisoformat(now.replace('Z','+00:00'))
+        return at.tzinfo is not None and current.tzinfo is not None and 0<=(current-at).total_seconds()<seconds
+    except (ValueError,AttributeError,TypeError): return False

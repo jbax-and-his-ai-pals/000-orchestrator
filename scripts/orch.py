@@ -1646,8 +1646,8 @@ def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing
     """Pure dispatch boundary shared by live queues and read-only forecasting."""
     due = due or {}
     projects = [p for p in projects if p.get("priority") != "skip"]
+    projects.sort(key=lambda p:({"high":0,"medium":1,"low":2}.get(p.get("priority"),3),p.get("last_scanned_at") or ""))
     focused = {p["repo_name"] for p in projects if steering.eligibility({},p,None,clock) == "project focus"}
-    spot = spot
     by_project = {p["repo_name"]:p for p in projects}
     who = {"planner":"codex","scout":"gemma"}.get(agent,"claude")
     inits = [i for i in inits if not steering.eligibility(i, by_project.get(i["project_name"], {"priority":"skip"}),
@@ -1683,8 +1683,7 @@ def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing
             return {"job": "subtask", **subs[0], "remaining": len(subs) - 1, "spotlight": spot}
         if spot:
             p = next((x for x in projects if x["repo_name"] == spot["project"]), None)
-            fresh = p and p["last_scanned_at"] and p["last_scanned_at"] > (
-                dt.datetime.fromisoformat(clock) - dt.timedelta(hours=6)).isoformat(timespec="seconds")
+            fresh = p and steering.recent(p.get("last_scanned_at"),clock,6*3600)
             return {"job": "scan", "project": None if (not p or fresh) else p["repo_name"], "spotlight": spot}
         return {"job": "scan", "project": projects[0]["repo_name"] if projects else None}
     if agent in ("architect", "architect-high"):

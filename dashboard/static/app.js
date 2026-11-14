@@ -170,6 +170,7 @@ function cardHtml(i) {
     <div class="card-sub"><span class="stage ${awaiting ? "awaiting" : ""}">${esc(Overview.plain(i.stage))}</span>
       <span class="cat cat-${i.category}">${CATEGORY_LABEL[i.category]}</span>${i.complexity === "high" ? `<span class="cat" style="color:var(--violet)">· high</span>` : ""}</div>
     <div class="card-title">${esc(i.title)}${O?.confirmed_active?.includes(i.id) ? ' <span class="badge">confirmed working</span>' : ""}</div>
+    <div class="estimate">${Overview.eta(O?.forecast?.initiatives?.[String(i.id)])}</div>
     <div class="card-sub">${esc(i.project_name === "NEW_CONCEPT" ? "✦ new concept" : short(i.project_name))} · ${ago(i.updated_at)}${prog}</div>
     ${i.revision_note ? `<div class="card-sub" style="color:var(--warn)">↺ ${esc(i.revision_note.slice(0, 90))}</div>` : ""}
     ${i.claim ? `<div class="card-sub claim">💬 in chat: ${esc(i.claim)}</div>` : ""}

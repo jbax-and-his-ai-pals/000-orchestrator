@@ -95,6 +95,18 @@ class ForecastTests(unittest.TestCase):
     def test_cross_lane_dependency_retries_after_completion(self):
         result=run([card(subs=[sub(1,'claude'),sub(2)])],lanes=[lane('codex'),lane('claude')])
         self.assertEqual([e['subtask_id'] for e in result['timeline'] if e['work_type']=='build'],[1,2])
+    def test_scout_priority_and_mixed_timezone_freshness(self):
+        a=project('a');b=project('b');b['priority']='high'
+        result=run([card(stage='spark')],projects=[a,b],lanes=[lane('gemma')])
+        self.assertEqual(result['timeline'][0]['project'],'b')
+        a['last_scanned_at']='2026-11-13T17:30:00-08:00'
+        result=run([card(stage='spark')],projects=[a],lanes=[lane('gemma')],spot={'project':'a'})
+        self.assertFalse(result['timeline'])
+    def test_unknown_running_job_is_not_attributed_to_queued_work(self):
+        l=lane();l['jobs'][0]['started_at']=u.stamp(NOW-dt.timedelta(minutes=1))
+        result=run(lanes=[l])
+        self.assertFalse(result['timeline'])
+        self.assertIn('not identified',result['initiatives']['1']['reason'])
     def test_cache_returns_copies(self):
         args=([card()],[project()],[lane()],[],NOW,orch.queue_from_snapshot)
         x=f.cached(*args);x['timeline'].clear()

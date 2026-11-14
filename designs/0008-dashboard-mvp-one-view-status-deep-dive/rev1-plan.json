@@ -1,0 +1,368 @@
+{
+  "test_command": "export PATH=\"/c/jbax-and-his-ai-pals/_orchestrator/.venv/Scripts:$PATH\"; python -m unittest discover -s tests -p 'test_*.py' && node --test tests/*.cjs && python scripts/dashboard_probe_smoke.py --real",
+  "subtasks": [
+    {
+      "id": 1,
+      "title": "Integrate #5 foundation and establish baseline",
+      "assignee": "codex",
+      "files": [
+        "scripts/orch.py",
+        "scripts/utilization.py",
+        "dashboard/app.py",
+        "dashboard/static/app.js",
+        "dashboard/static/index.html",
+        "dashboard/static/style.css",
+        "dashboard/static/utilization.js",
+        "tests/test_utilization_api.py",
+        "tests/test_utilization_parsers.py",
+        "tests/test_utilization_sampler.py",
+        "tests/test_utilization_store.py",
+        "tests/test_utilization_ui.cjs",
+        "tests/test_utilization_windows_cmd.py"
+      ],
+      "instructions": "1. Read LLD and confirm #8 is building in its assigned clean feat worktree using orch guard; never create it or advance a gate yourself. 2. Re-resolve and merge feat/utilization-tab-gpu-vram-and-quota-over FIRST, or prove it ancestral; resolve conflicts only here and preserve #5 Windows .cmd fix, collector/store interfaces and sampler lease. The files list covers the imported implementation/tests; a merge may also import #5 design artifacts. 3. Resolve a working Python with FastAPI/Markdown from the worktree or shared venv; record interpreter and baseline test counts. Run inherited Python/Node suites. 4. Record actual baseline failures; fix integration conflicts, not unrelated issues. Commit through orch in BUILD only.",
+      "acceptance": "Named #5 tip is ancestral to #8, inherited suites pass or specific pre-existing failures block work; no duplicate sampler.",
+      "verify": "git merge-base --is-ancestor feat/utilization-tab-gpu-vram-and-quota-over HEAD && python -m unittest discover -s tests -p 'test_utilization_*.py' && node --test tests/test_utilization_ui.cjs",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T17:11:07-08:00 planner-codex] Merged #5 first, inherited 21 Python/7 Node tests pass using shared .venv Python; no duplicate sampler",
+      "attempts": 0,
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T17:11:06-08:00",
+        "ok": true,
+        "output_tail": "14-day fixture: 101865 bytes response, 77.3 ms query, 19070976 bytes DB\n✔ finite transforms preserve zero, gaps and singletons (0.6556ms)\n✔ exactly four bounded charts with separate axes and unconnected Claude dots (1.2556ms)\n✔ external names, reasons, resets and notes are escaped (0.4633ms)\n✔ local clock labels clamp expired resets and handle missing timestamps (0.1088ms)\n✔ visible-only polling prevents overlap, tears down timers and aborts leave (2.387ms)\n✔ range race discards late responses and fetch failure preserves last-good (0.7082ms)\n✔ document visibility suspends both timers and resumes once (1.9411ms)\nℹ tests 7\nℹ suites 0\nℹ pass 7\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 55.6881\n.....................\n----------------------------------------------------------------------\nRan 21 tests in 1.874s\n\nOK\n"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Implement safe priority, eligibility, reorder and execution records",
+      "assignee": "codex",
+      "files": [
+        "scripts/orch.py",
+        "scripts/steering.py",
+        "tests/test_dashboard_steering.py"
+      ],
+      "instructions": "1. Add idempotent initiative priority/events.details_json migrations and transaction-safe expected-version helpers from LLD. 2. Extract shared eligibility and apply project then initiative priority to actual work queues while retaining review/LLD/build precedence and all exclusion/finishing guards. 3. Make implicit ready() ordering list-position based; validate full effective dependency graph and freeze done/doing positions for reorder. Keep stable IDs and all plan metadata. 4. Add set-initiative and reorder-subtasks CLI commands with stale-write conflict errors; add optional expected project version to update_project without breaking existing CLI callers. 5. Record attempt-scoped doing/terminal details and subtask commit SHAs on commit --sub; do not fabricate old intervals. 6. Tests use temporary DB/feature repos only and cover migration twice, old plans, actual dispatch priority, skip/claims/focus/spotlight/handoffs, explicit [] dependencies, mixed cycles, frozen entries, stale transaction races and attribution.",
+      "acceptance": "Priorities change dispatch; safe pending reorder changes readiness without renumbering/history loss; stale and invalid edits leave DB unchanged.",
+      "verify": "test -f tests/test_dashboard_steering.py && python -m unittest discover -s tests -p 'test_dashboard_steering.py'",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T17:13:44-08:00 planner-codex] Six isolated steering regression tests pass; priority affects actual planner dispatch, migrations idempotent, stable reorder and stale guards verified",
+      "attempts": 0,
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T17:13:43-08:00",
+        "ok": true,
+        "output_tail": "......\n----------------------------------------------------------------------\nRan 6 tests in 0.305s\n\nOK\n"
+      },
+      "commit_shas": [
+        "5eb4637b066e3d9c6f7f6bc4c3f3c4799b50e568"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Add cached lane observations to the existing sampler",
+      "assignee": "codex",
+      "files": [
+        "scripts/lane_status.py",
+        "scripts/utilization.py",
+        "scripts/orch.py",
+        "dashboard/app.py",
+        "scripts/dashboard_probe_smoke.py",
+        "tests/test_dashboard_lanes.py",
+        "tests/test_dashboard_probe_smoke.py",
+        "tests/test_utilization_windows_cmd.py"
+      ],
+      "instructions": "1. Inspect installed read-only cron help/list output; capture sanitized supported schema fixtures, include disabled jobs, exact declaration registry and absent Gemini handling. Do not mutate schedules. 2. Add lane_observations schema and pure parser/status normalization with timestamps, bounded errors and no raw payload/prompts/secrets. 3. Extend existing Sampler claim/attempt map with cron:30s and observation sink; keep current 60s GPU/Ollama and 600s quota cadences and same lease. Wire lifespan without second sampler. 4. Bound command output during capture and process deadlines, preserving Windows .cmd quoting; no arbitrary args/control inputs. 5. Create opt-in dashboard_probe_smoke.py --real that really spawns installed OpenClaw models status + cron list, nvidia-smi and Ollama read-only status, checks reused /api/ps, outputs sanitized classifications, fails installed-tool parse/timeouts and clearly reports missing tools. No inference or writes. 6. Test lease competition/old owner/recovery, stale or newer failed observations, disabled+running, loaded-only Ollama, missing/duplicate declarations, concurrent claims and output cap. Run real smoke now in BUILD.",
+      "acceptance": "One shared lease limits cron to 30s across instances; requests never probe. Real installed-tool subprocesses parse or produce a named blocker, not mocked-only success.",
+      "verify": "test -f tests/test_dashboard_lanes.py && python -m unittest discover -s tests -p 'test_dashboard_lanes.py' && python -m unittest discover -s tests -p 'test_dashboard_probe_smoke.py' && python -m unittest discover -s tests -p 'test_utilization_windows_cmd.py' && python scripts/dashboard_probe_smoke.py --real",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T17:18:04-08:00 planner-codex] Shared cron lease and sanitized cache tested; real models status, cron, nvidia-smi, ollama ps and /api/ps all parsed successfully; inherited 21 tests pass after Popen harness update",
+      "attempts": 0,
+      "run_attempt": "48d578a9db1a49a28674c32bdabb57a0",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T17:16:56-08:00",
+        "ok": true,
+        "output_tail": "{\"observed_at\": \"2026-11-14T01:16:56+00:00\", \"checks\": [{\"probe\": \"openclaw_models\", \"classification\": \"ok\", \"parsed_count\": 2}, {\"probe\": \"openclaw_cron\", \"classification\": \"ok\", \"parsed_count\": 5}, {\"probe\": \"nvidia_smi\", \"classification\": \"ok\", \"parsed_count\": 5}, {\"probe\": \"ollama_process\", \"classification\": \"ok\", \"parsed_count\": 1}, {\"probe\": \"ollama_api\", \"classification\": \"ok\", \"parsed_count\": 1}]}\n....\n----------------------------------------------------------------------\nRan 4 tests in 0.061s\n\nOK\n...\n----------------------------------------------------------------------\nRan 3 tests in 0.044s\n\nOK\n..\n----------------------------------------------------------------------\nRan 2 tests in 0.048s\n\nOK\n"
+      },
+      "commit_shas": [
+        "8ae6516ba28887cea33534d924587bffd11bca3c"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Build complete overview, estimates and quota pacing read model",
+      "assignee": "codex",
+      "files": [
+        "scripts/overview.py",
+        "scripts/orch.py",
+        "tests/test_dashboard_overview.py",
+        "tests/test_dashboard_estimates.py"
+      ],
+      "instructions": "1. Build pure read-model functions with injected aware clock and shared eligibility. Inventory every open initiative/unfinished subtask, owner provenance, actual stage-entry age or labeled creation fallback, all pending groups, suggestions and deduplicated attention. 2. Normalize lane activity/scheduler/quota as separate facts; recent/project/triage markers never fabricate live work. 3. Pair bounded 90-day event history by actor/card/type/attempt; exact unambiguous legacy build pairs only. Median needs >=3, actor fallback low confidence, overdue instead of moving deadlines. Pick first truly eligible candidate per job; overall earliest valid completion, next check distinct. 4. Use #5 current_metric for per-window actual/even-burn delta and freshness; inferred window boundaries marked estimated, no reset crossing/interpolation or Gemini quota fiction. 5. Cache event stats; explicit totals/cursors if payload needs pagination. Cover complete inventory and all unknown/blocked conditions, matching ambiguity, timezone/reset/manual quota, sparse history and budgets.",
+      "acceptance": "Every entity reachable, no gate dwell used as runtime, no fictional status/ETA/pace, cached aggregation stays bounded and read-only.",
+      "verify": "test -f tests/test_dashboard_overview.py && test -f tests/test_dashboard_estimates.py && python -m unittest discover -s tests -p 'test_dashboard_overview.py' && python -m unittest discover -s tests -p 'test_dashboard_estimates.py'",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T17:20:57-08:00 planner-codex] Complete inventory, claims, gate waiting, sparse/ambiguous duration samples, overdue estimates and quota reset pacing verified",
+      "attempts": 0,
+      "run_attempt": "4d74bab04229485f85bdf13863ff4540",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T17:20:57-08:00",
+        "ok": true,
+        "output_tail": "..............\n----------------------------------------------------------------------\nRan 14 tests in 0.829s\n\nOK\n....\n----------------------------------------------------------------------\nRan 4 tests in 0.000s\n\nOK\n"
+      },
+      "commit_shas": [
+        "2b0fd3e13787af869ee051bda02504fc5912c00c"
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Expose guarded steering, overview and subtask detail APIs",
+      "assignee": "codex",
+      "files": [
+        "scripts/orch.py",
+        "scripts/steering.py",
+        "scripts/lane_status.py",
+        "dashboard/app.py",
+        "tests/test_dashboard_api.py",
+        "tests/test_dashboard_security.py"
+      ],
+      "instructions": "1. Add typed overview, priority/reorder, declaration-only lane-control and fixed-project suggestions routes per LLD; reuse orch entry points and header guard. Add overview generation to version and plan/project tokens to details. 2. Implement lane-control CLI adapter: fresh exact declaration resolution, compare enabled/generation, shared operation lease, supported enable/disable, re-read outcome and log. Fail/partial/timeout must never falsely mark success; no DB transaction around external tool. No live mutation in tests. 3. Add idempotent idea creation within orch transaction, token + body hash, bounded retained receipts, duplicate prevention; submission only creates spark. 4. Implement bounded subtask verify/history/diff detail using recorded SHAs and initiative-wide legacy fallback, safe worktree/commit validation and cursor paging. 5. Test all new POSTs missing header, invalid/stale requests and SQL/XSS/path/command injection; mock controller, retain gate/focus/spotlight/claim behavior, read-only GET/no probes and metric-only version changes. Use temporary state exclusively.",
+      "acceptance": "HTTP reads are cached and complete; writes validate and reject stale state; no arbitrary scheduler/job/path operations or incidental gate changes.",
+      "verify": "test -f tests/test_dashboard_api.py && test -f tests/test_dashboard_security.py && python -m unittest discover -s tests -p 'test_dashboard_api.py' && python -m unittest discover -s tests -p 'test_dashboard_security.py'",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T17:24:54-08:00 planner-codex] API and security suites pass; all POST headers, stale priority, idempotent ideas, lane failures, raw HTML and metric refresh tested; no live control mutations",
+      "attempts": 0,
+      "run_attempt": "e74141bea017480e96978e86d02b834d",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T17:21:19-08:00",
+        "ok": true,
+        "output_tail": ".........\n----------------------------------------------------------------------\nRan 9 tests in 0.566s\n\nOK\n.............\n----------------------------------------------------------------------\nRan 13 tests in 0.795s\n\nOK\n"
+      },
+      "commit_shas": [
+        "800ab179a73c6a1a595295b5b01ead20ddf24dbe"
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Render default Overview and producer steering controls",
+      "assignee": "codex",
+      "files": [
+        "dashboard/static/overview.js",
+        "dashboard/static/app.js",
+        "dashboard/static/index.html",
+        "dashboard/static/style.css",
+        "tests/test_dashboard_ui.cjs"
+      ],
+      "instructions": "1. Add Overview as default with existing dark tokens, responsive layout, textual lane states, prominent per-lane/overall next update, complete active/pending lists, attention, quota pace and suggestions; preserve all old tabs and utilization.js. 2. Add project filter/counts/expand or pagination so no task is silently dropped; confirmed-active vs recent markers on existing cards. 3. Wire initiative/project priority, pending reorder preview, per-declaration pause/resume (Claude both jobs visible), add-idea form with idempotency key, existing focus/spotlight/gates/claims links. Confirm external/destructive actions and explain future-runs pause. 4. Update keyed regions only, preserve all drafts/selection/scroll, disable duplicate writes, surface errors/409 and refresh authoritative state. Use escaped text and no inline scripts. 5. Add Node rendering/helper tests for every empty/unknown/stale state, escaping, forms and generation refresh; retain existing #5 tests.",
+      "acceptance": "One default screen answers all approved questions, complete task counts and controls are usable without destroying drafts or legacy views.",
+      "verify": "test -f tests/test_dashboard_ui.cjs && node --check dashboard/static/overview.js && node --check dashboard/static/app.js && node --test tests/test_dashboard_ui.cjs tests/test_utilization_ui.cjs",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T17:25:36-08:00 planner-codex] 13 Node rendering/utilization tests pass, overview default and all controls integrated; polling preserves focused regions and idea drafts",
+      "attempts": 0,
+      "run_attempt": "8642fb8815584c3fb4bafc2d489a1140",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T17:24:55-08:00",
+        "ok": true,
+        "output_tail": "✔ empty overview and unknown predictions remain explicit (0.7855ms)\n✔ untrusted title/status/errors escaped and all rows retained (1.6534ms)\n✔ project filter exact and counts match (0.119ms)\n✔ disabled running and stale lanes have separate text and controls (0.1859ms)\n✔ estimates never invent completion and preserve confidence (10.839ms)\n✔ keyed regions do not replace focused content (0.2263ms)\n✔ finite transforms preserve zero, gaps and singletons (0.5948ms)\n✔ exactly four bounded charts with separate axes and unconnected Claude dots (1.0728ms)\n✔ external names, reasons, resets and notes are escaped (0.4813ms)\n✔ local clock labels clamp expired resets and handle missing timestamps (0.12ms)\n✔ visible-only polling prevents overlap, tears down timers and aborts leave (2.6028ms)\n✔ range race discards late responses and fetch failure preserves last-good (0.8392ms)\n✔ document visibility suspends both timers and resumes once (2.1659ms)\nℹ tests 13\nℹ suites 0\nℹ pass 13\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 70.981\n"
+      },
+      "commit_shas": [
+        "bef3d70fc9b85243c2a97ff02bda7df0ef5a51ea"
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Implement deep-link navigation and accessible drill-down",
+      "assignee": "codex",
+      "files": [
+        "dashboard/static/navigation.js",
+        "dashboard/static/app.js",
+        "dashboard/static/overview.js",
+        "dashboard/static/index.html",
+        "dashboard/static/style.css",
+        "tests/test_dashboard_navigation.cjs"
+      ],
+      "instructions": "1. Implement centralized hash routes #/, project, initiative, subtask and legacy #card-id alias; secondary tabs remain reachable. Support reload/back/forward/not-found and breadcrumbs, no fetch-driven history overwrites. 2. Show subtask owner/status/instructions/acceptance/verify result/attributed diff/history with bounded lazy loads and explicit legacy fallback. 3. Convert clickable cards/names to real links/buttons, visible focus, modal Tab trap, Escape closes to prior route and restores focus (direct links get safe fallback). Respect reduced motion. 4. Reject stale detail fetch completions with abort/sequence token; preserve dirty controls and detail scroll during polling. 5. Node tests cover pure route/focus helpers, encoded repository names, bad routes, legacy links, back/forward and response ordering. Include manual browser keyboard checks in later acceptance; never claim these from string tests.",
+      "acceptance": "Copied project/initiative/subtask URLs restore selection; keyboard navigation and drafts survive polling; old links work.",
+      "verify": "test -f tests/test_dashboard_navigation.cjs && node --check dashboard/static/navigation.js && node --test tests/test_dashboard_navigation.cjs tests/test_dashboard_ui.cjs",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T17:25:36-08:00 planner-codex] 10 Node route/render tests pass; deep routes, legacy, malformed routes, stale response tokens and focus trap helpers tested; live browser checks follow in integration",
+      "attempts": 0,
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T17:31:33-08:00",
+        "ok": true,
+        "output_tail": "✔ deep and legacy links parse (0.9004ms)\n✔ bad paths and encoded traversal rejected (0.159ms)\n✔ late response ordering discarded (0.1159ms)\n✔ focus trap wraps first and last (0.1532ms)\n✔ empty overview and unknown predictions remain explicit (0.7207ms)\n✔ untrusted title/status/errors escaped and all rows retained (1.5332ms)\n✔ project filter exact and counts match (0.1097ms)\n✔ disabled running and stale lanes have separate text and controls (0.1984ms)\n✔ estimates never invent completion and preserve confidence (9.9845ms)\n✔ keyed regions do not replace focused content (0.1955ms)\nℹ tests 10\nℹ suites 0\nℹ pass 10\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 72.6254\n"
+      },
+      "run_attempt": "8a54ceabb7a2433d840618e4f03cb1a6",
+      "commit_shas": [
+        "471eee57550f00383adb877ce7e156f2afe760cc"
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Update canonical self-improvement playbooks safely",
+      "assignee": "codex",
+      "files": [
+        "playbooks/planner-codex/AGENTS.md",
+        "playbooks/scout-gemma/AGENTS.md",
+        "scripts/sync_playbooks.py",
+        "tests/test_dashboard_playbooks.py"
+      ],
+      "instructions": "1. Add planner permission to propose bold orchestrator and quota-saving sparks with evidence/cost, respecting spotlight categories and producer gates. 2. Add scout permission to surface observed improvement evidence under Needs frontier; retain absolute no Gemma pitches/designs/routing-policy changes. 3. Make sync_playbooks accept optional explicit source/destination roots for isolated verification while preserving default export and --install behavior. Test install/export against temporary fixture workspaces. 4. Canonical edits first. Do not run default export from stale agent workspaces or overwrite live agent files during feature BUILD; test --install with explicit roots. Record post-merge deployment instruction for conductor to run canonical --install from deployed checkout. Avoid direct edits to generated workspace AGENTS files.",
+      "acceptance": "Canonical policies welcome evidence-based ideas without relaxing Gemma contract/gates, and isolated synchronization proves regeneration without overwriting live workspaces.",
+      "verify": "test -f tests/test_dashboard_playbooks.py && python -m unittest discover -s tests -p 'test_dashboard_playbooks.py'",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T17:32:43-08:00 planner-codex] Canonical planner/scout policies and explicit-root sync install/export pass isolated tests; deployment instruction recorded, no live agent workspace files overwritten",
+      "attempts": 0,
+      "run_attempt": "b797b97ab497487f912d6ada5a6feb12",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T17:32:42-08:00",
+        "ok": true,
+        "output_tail": "exported 1 changed file(s)\ninstalled 1 changed file(s)\ninstalled 1 changed file(s)\n..\n----------------------------------------------------------------------\nRan 2 tests in 0.016s\n\nOK\n"
+      },
+      "commit_shas": [
+        "b4a6559e3b1e95514d66881e6d1d2e66ad9e8099"
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Run integration, performance, security and playtest readiness checks",
+      "assignee": "codex",
+      "files": [
+        "tests/test_dashboard_integration.py",
+        "tests/test_dashboard_security.py",
+        "scripts/dashboard_probe_smoke.py",
+        "designs/0008-dashboard-mvp-one-view-status-deep-dive/PLAYTEST.md"
+      ],
+      "instructions": "1. Add isolated mixed-portfolio integration fixtures covering all HLD acceptance paths, unchanged gate security, telemetry-only refresh, priority and dependency correctness, bounded overview latency/payload. Assert nonzero discovered tests. 2. Run full Python/Node suites plus --real read-only probes; any installed-tool or security failure blocks review. Record explicit missing tools/environment blockers rather than claiming complete coverage. 3. Manually serve #8 code on 127.0.0.1:8422 with shared ORCH_HOME, GET state/overview/version/project/initiative/subtask/utilization; no live gate/lane mutations. Inspect actual rendered UI, keyboard/Tab/Escape/back/reload, dirty feedback/idea form over refresh and responsive layout; stop only that server in finally. If browser verification unavailable, name it and do not invent a pass. 4. Write PLAYTEST.md <=10 lines of clicks/expected outcomes and any unverified checks. Commit using orch commit 8 --sub 9; mark done only after verification. 5. After all subtasks done, separately perform required branch review using current syntax orch review 8 pass --note with evidence, full suite before and after; stop at playtest, never advance/revise/reject/push/merge main. At low quota commit/handoff and stop.",
+      "acceptance": "Full automated suites and real probes pass with explicit coverage; live read-only endpoint/render checks recorded, <=10-line playtest instructions ready; no producer gate advanced.",
+      "verify": "test -f tests/test_dashboard_integration.py && python -m unittest discover -s tests -p 'test_*.py' && node --test tests/*.cjs && python scripts/dashboard_probe_smoke.py --real && test -f designs/0008-dashboard-mvp-one-view-status-deep-dive/PLAYTEST.md && test $(wc -l < designs/0008-dashboard-mvp-one-view-status-deep-dive/PLAYTEST.md) -le 10",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T17:41:53-08:00 planner-codex] 92 Python/18 Node tests and real probes pass; 1003-card overview max177ms/309KB; all seven API endpoints and scripts curl 200 on owned :8422, server stopped. Browser policy blocks visual/keyboard checks, explicitly unverified in 10-line PLAYTEST.",
+      "attempts": 0,
+      "run_attempt": "ec3e4702d1f44925a2375b946c96468d",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T17:39:58-08:00",
+        "ok": true,
+        "output_tail": "Overview scale: max 177.3 ms, 308991 bytes initial JSON\nexported 1 changed file(s)\ninstalled 1 changed file(s)\ninstalled 1 changed file(s)\n14-day fixture: 101865 bytes response, 90.0 ms query, 19070976 bytes DB\n✔ deep and legacy links parse (0.8863ms)\n✔ bad paths and encoded traversal rejected (0.132ms)\n✔ late response ordering discarded (0.0974ms)\n✔ focus trap wraps first and last (0.1514ms)\n✔ empty overview and unknown predictions remain explicit (0.6789ms)\n✔ untrusted title/status/errors escaped and all rows retained (1.4597ms)\n✔ project filter exact and counts match (0.1185ms)\n✔ disabled running and stale lanes have separate text and controls (0.1775ms)\n✔ estimates never invent completion and preserve confidence (9.5461ms)\n✔ keyed regions do not replace focused content (0.1879ms)\n✔ application boots Overview with real script wiring and no runtime error (4.1878ms)\n✔ finite transforms preserve zero, gaps and singletons (0.5983ms)\n✔ exactly four bounded charts with separate axes and unconnected Claude dots (1.0489ms)\n✔ external names, reasons, resets and notes are escaped (0.4871ms)\n✔ local clock labels clamp expired resets and handle missing timestamps (0.1165ms)\n✔ visible-only polling prevents overlap, tears down timers and aborts leave (2.5338ms)\n✔ range race discards late responses and fetch failure preserves last-good (0.7792ms)\n✔ document visibility suspends both timers and resumes once (2.0531ms)\nℹ tests 18\nℹ suites 0\nℹ pass 18\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 70.0702\n{\"observed_at\": \"2026-11-14T01:39:58+00:00\", \"checks\": [{\"probe\": \"openclaw_models\", \"classification\": \"ok\", \"parsed_count\": 2}, {\"probe\": \"openclaw_cron\", \"classification\": \"ok\", \"parsed_count\": 5}, {\"probe\": \"nvidia_smi\", \"classification\": \"ok\", \"parsed_count\": 5}, {\"probe\": \"ollama_process\", \"classification\": \"ok\", \"parsed_count\": 1}, {\"probe\": \"ollama_api\", \"classification\": \"ok\", \"parsed_count\": 1}]}\n............................................................................................\n----------------------------------------------------------------------\nRan 92 tests in 6.458s\n\nOK\n"
+      },
+      "commit_shas": [
+        "85678599a3c850507e0ff5cd5d61d6fbc66bc33d"
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Implement bounded read-only forecast and estimate fallbacks",
+      "files": [
+        "scripts/forecast.py",
+        "scripts/steering.py",
+        "scripts/orch.py",
+        "tests/test_dashboard_forecast.py"
+      ],
+      "instructions": "1. Share pure dispatch selection with actual queues, preserving precedence, eligibility, contracts and dependencies. 2. Simulate observed lane schedules over 24h with injected clock and bounded steps, fixed labeled priors after three median tiers. 3. Include producer conditional gates, blockers, scans, per-work/card/project ETAs and priority what-if delay deltas; cache results without writes. 4. Test fallback tiers, pause, spotlight, claims, focus, dependencies, gates and what-if.",
+      "verify": "export PATH=\"/c/jbax-and-his-ai-pals/_orchestrator/.venv/Scripts:$PATH\"; python -m unittest discover -s tests -p 'test_dashboard_forecast.py'",
+      "assignee": "codex",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T18:45:53-08:00 planner-codex] Implementing pure dispatch and bounded forecast\n[2026-11-13T18:49:43-08:00 planner-codex] 10 forecast regressions and 7 dispatch steering tests pass; shared pure queue, fallback tiers, gates, blockers, what-if, bounded cache verified",
+      "attempts": 0,
+      "acceptance": "Revision behavior verified by targeted regressions; existing behavior and producer gates unchanged.",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T18:56:55-08:00",
+        "ok": true,
+        "output_tail": ".............\n----------------------------------------------------------------------\nRan 13 tests in 0.010s\n\nOK\n"
+      }
+    },
+    {
+      "id": 11,
+      "title": "Integrate forecast rollups, readable owners and quota pace",
+      "files": [
+        "scripts/overview.py",
+        "dashboard/app.py",
+        "tests/test_dashboard_rollups.py",
+        "tests/test_dashboard_estimates.py"
+      ],
+      "instructions": "1. Integrate cached forecast into overview before pagination and expose read-only what-if API. 2. Compute deduplicated total/project/card progress and ETAs; retain project filtering. 3. Derive stage/lane owners, use under/on/over pace and 60-minute quota freshness with Claude hint. 4. Test rollups, sparse estimates, filtered summaries and API read-only behavior.",
+      "verify": "export PATH=\"/c/jbax-and-his-ai-pals/_orchestrator/.venv/Scripts:$PATH\"; python -m unittest discover -s tests -p 'test_dashboard_rollups.py' && python -m unittest discover -s tests -p 'test_dashboard_estimates.py'",
+      "assignee": "codex",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T18:49:43-08:00 planner-codex] Integrating forecast rollups and read-only comparison API\n[2026-11-13T18:52:16-08:00 planner-codex] 19 rollup/API/steering regressions, four estimate tests and 10 integration tests pass; 1003-card projection max213ms/382KB; no GET probes or writes",
+      "attempts": 0,
+      "acceptance": "Revision behavior verified by targeted regressions; existing behavior and producer gates unchanged.",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T18:52:45-08:00",
+        "ok": true,
+        "output_tail": "...................\n----------------------------------------------------------------------\nRan 19 tests in 1.068s\n\nOK\n....\n----------------------------------------------------------------------\nRan 4 tests in 0.000s\n\nOK\n"
+      }
+    },
+    {
+      "id": 12,
+      "title": "Render rollups, next-hours forecast and what-if beside priority controls",
+      "files": [
+        "dashboard/static/overview.js",
+        "dashboard/static/app.js",
+        "dashboard/static/index.html",
+        "dashboard/static/style.css",
+        "tests/test_dashboard_revision_ui.cjs"
+      ],
+      "instructions": "1. Put totals and project rollups at top; show progress and ETA for all work rows. 2. Show next-hours timeline and conditional gate/blocker basis with local day and relative times. 3. Show read-only priority comparisons and delayed work beside existing controls and in drill-down, leaving guarded writes unchanged. 4. Map raw labels, remove duplicate stages, clarify quota pace/reset/staleness. Test rendering/escaping.",
+      "verify": "export PATH=\"/c/jbax-and-his-ai-pals/_orchestrator/.venv/Scripts:$PATH\"; node --check dashboard/static/app.js && node --test tests/test_dashboard_revision_ui.cjs tests/test_dashboard_ui.cjs",
+      "assignee": "codex",
+      "mechanical": false,
+      "status": "done",
+      "notes": "[2026-11-13T18:52:16-08:00 planner-codex] Rendering rollups, forecasts and priority comparisons\n[2026-11-13T18:56:57-08:00 planner-codex] 16 Node UI regressions pass; 13 forecast tests include fixed-start active ETAs, overdue and cross-lane timing; local day/relative times, escaping, quota hints and comparison cache verified",
+      "attempts": 0,
+      "acceptance": "Revision behavior verified by targeted regressions; existing behavior and producer gates unchanged.",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T18:56:56-08:00",
+        "ok": true,
+        "output_tail": "✔ top totals/project rows preserve unique counts and progress (11.4922ms)\n✔ timeline has local day, duration basis and no duplicated stage or raw provenance (0.8987ms)\n✔ conditional gate, pause and spotlight retain actionable explanations (0.1911ms)\n✔ what-if escaping includes delayed work and read-only caveat (0.3422ms)\n✔ quota pace reset local day and stale Claude hint are readable (0.6542ms)\n✔ external labels and forecast work text cannot introduce HTML (0.3865ms)\n✔ filter selects rollup and timeline consistently (0.098ms)\n✔ owner routes, raw mappings and relative labels (0.1626ms)\n✔ cached what-if survives region refresh without affecting writes (0.5048ms)\n✔ empty overview and unknown predictions remain explicit (0.9052ms)\n✔ untrusted title/status/errors escaped and all rows retained (1.8443ms)\n✔ project filter exact and counts match (0.1268ms)\n✔ disabled running and stale lanes have separate text and controls (0.2031ms)\n✔ estimates never invent completion and preserve confidence (9.4833ms)\n✔ keyed regions do not replace focused content (0.1823ms)\n✔ application boots Overview with real script wiring and no runtime error (4.7922ms)\nℹ tests 16\nℹ suites 0\nℹ pass 16\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 71.7096\n"
+      }
+    },
+    {
+      "id": 13,
+      "title": "Verify revision integration and prepare producer playtest",
+      "files": [
+        "tests/test_dashboard_revision_integration.py",
+        "designs/0008-dashboard-mvp-one-view-status-deep-dive/PLAYTEST.md"
+      ],
+      "instructions": "1. Add end-to-end isolated read-only regression checks, run all existing Python/Node suites and real read-only probes. 2. Serve only owned 127.0.0.1:8423 with shared ORCH_HOME, GET-only checks; stop only own server. 3. Rewrite PLAYTEST <=10 lines prioritizing active work, ETAs, rollups, overview, quota. 4. Commit, mark done and perform branch review; never advance/revise/reject/push.",
+      "verify": "export PATH=\"/c/jbax-and-his-ai-pals/_orchestrator/.venv/Scripts:$PATH\"; python -m unittest discover -s tests -p 'test_*.py' && node --test tests/*.cjs && python scripts/dashboard_probe_smoke.py --real",
+      "assignee": "codex",
+      "mechanical": false,
+      "status": "doing",
+      "notes": "[2026-11-13T18:56:57-08:00 planner-codex] Running full integration and GET-only live acceptance on owned port 8423",
+      "attempts": 0,
+      "acceptance": "Revision behavior verified by targeted regressions; existing behavior and producer gates unchanged.",
+      "verify_ok": true,
+      "last_verify": {
+        "at": "2026-11-13T19:01:29-08:00",
+        "ok": true,
+        "output_tail": "0946ms)\n✔ focus trap wraps first and last (0.1471ms)\n✔ top totals/project rows preserve unique counts and progress (11.1689ms)\n✔ timeline has local day, duration basis and no duplicated stage or raw provenance (1.5276ms)\n✔ conditional gate, pause and spotlight retain actionable explanations (0.228ms)\n✔ what-if escaping includes delayed work and read-only caveat (0.3727ms)\n✔ quota pace reset local day and stale Claude hint are readable (0.7616ms)\n✔ external labels and forecast work text cannot introduce HTML (0.3618ms)\n✔ filter selects rollup and timeline consistently (0.09ms)\n✔ owner routes, raw mappings and relative labels (0.1534ms)\n✔ cached what-if survives region refresh without affecting writes (0.4904ms)\n✔ empty overview and unknown predictions remain explicit (0.8446ms)\n✔ untrusted title/status/errors escaped and all rows retained (1.8207ms)\n✔ project filter exact and counts match (0.1306ms)\n✔ disabled running and stale lanes have separate text and controls (0.1951ms)\n✔ estimates never invent completion and preserve confidence (9.8633ms)\n✔ keyed regions do not replace focused content (0.2091ms)\n✔ application boots Overview with real script wiring and no runtime error (4.3757ms)\n✔ finite transforms preserve zero, gaps and singletons (0.6332ms)\n✔ exactly four bounded charts with separate axes and unconnected Claude dots (1.0292ms)\n✔ external names, reasons, resets and notes are escaped (0.4661ms)\n✔ local clock labels clamp expired resets and handle missing timestamps (0.1125ms)\n✔ visible-only polling prevents overlap, tears down timers and aborts leave (3.0798ms)\n✔ range race discards late responses and fetch failure preserves last-good (0.783ms)\n✔ document visibility suspends both timers and resumes once (2.1351ms)\nℹ tests 27\nℹ suites 0\nℹ pass 27\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 77.9015\n{\"observed_at\": \"2026-11-14T03:01:29+00:00\", \"checks\": [{\"probe\": \"openclaw_models\", \"classification\": \"ok\", \"parsed_count\": 2}, {\"probe\": \"openclaw_cron\", \"classification\": \"ok\", \"parsed_count\": 5}, {\"probe\": \"nvidia_smi\", \"classification\": \"ok\", \"parsed_count\": 5}, {\"probe\": \"ollama_process\", \"classification\": \"ok\", \"parsed_count\": 1}, {\"probe\": \"ollama_api\", \"classification\": \"ok\", \"parsed_count\": 1}]}\n..............................................................................................................................................\n----------------------------------------------------------------------\nRan 142 tests in 8.272s\n\nOK\n"
+      }
+    }
+  ],
+  "review": {
+    "status": "pending",
+    "notes": "Producer revision: Producer 2026-11-13: 'i like the next expected update panel; i'd like to see the time estimate also say e.g. \"45 minutes\" instead of just the specific time of the next update, and then i need more human readable information about what that next expected thing is; remove, \"estimate, not a deadline\", and then why would gemma stay idle? since it's free, we should always find that next thing for it to do; for the purposes of building out the dashboard, it's ok not to consider weekly quota so that we're forced to delay tasks; instead, we operate within the bounds of our 5 hour windows until mvp; if we hit weekly quota, that's unfortunate, and we'll do what we can'. Queued as revision 1b after the current Codex run: logs/codex-rev1b-msg.txt"
+  }
+}

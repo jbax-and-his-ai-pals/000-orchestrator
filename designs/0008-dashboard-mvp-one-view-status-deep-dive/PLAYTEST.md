@@ -1,10 +1,10 @@
-# Dashboard MVP #8 — playtest
-1. Open Overview: inspect lane activity vs future-runs state, next check/completion, age/provenance and attention.
-2. Filter projects; expand pending groups and Load more: counts must include every open initiative/subtask.
-3. Follow project → initiative → subtask, copy/reload URLs, use Back/Forward, Tab/Shift-Tab and Escape.
-4. Type feedback and an idea; wait through polling: drafts, selection and scroll must remain intact.
-5. Change project/initiative priority and pending order: verify dispatch order, fixed done/doing positions and stale-edit errors.
-6. Confirm lane pause/resume affects future runs only (both Claude declarations visible); test focus/spotlight and existing gates only when intended.
-7. Inspect quota pace (estimated baselines), Utilization history, verify output, attributed diffs, history and add-idea retry deduplication.
-8. Automated suites/real probes and seven :8422 read-only endpoints passed; browser policy blocked visual, responsive and live keyboard verification: producer must check these.
-9. After shipping, conductor runs deployed scripts/sync_playbooks.py --install; BUILD never overwrote live agent workspaces.
+# Dashboard revision 1 — producer playtest
+1. Start with active tasks: routed owner, task age, n/m progress and ETA appear on every row.
+2. Check ETAs: duration says history median or labeled default; overdue work never slides its deadline.
+3. Top rollups show open/in-flight/waiting/blocked/queued counts and project next-checkpoint ETAs; filter a project.
+4. Next hours shows observed scheduled work; paused, stale, spotlight and chat ownership remain explicit blockers.
+5. Open project/initiative priority controls → If prioritized? Compare current ETA, alternative and delayed cards (GET-only).
+6. Pending producer gates show waiting time and conditional if-approved-now ETAs; no gates are auto-approved.
+7. Quota pace reads under/on/over pace, reset day + local time, 60-minute staleness and Claude snapshot hint.
+Evidence: full Python/Node suites, five real read-only probes and ten live GETs on owned :8423 passed; server stopped.
+Unverified: browser policy blocks loopback navigation, so visual layout, keyboard/back/reload and draft persistence need producer checks.

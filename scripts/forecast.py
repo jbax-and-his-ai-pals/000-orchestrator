@@ -120,6 +120,9 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
             if (not job.get('enabled') or reason) and not observed_running: continue
             start=date(job.get('next_run_at'))
             running=date(job.get('started_at'))
+            if running and running<=now and actor not in active:
+                lane_reasons[actor]='current run task not identified; waiting for a new observation'
+                continue
             if running and running<=now: start=now
             if not start or start<now: continue
             agent={'codex':'planner','gemma':'scout','claude':'architect-high' if job['declaration'].endswith('-opus') else 'architect'}[actor]
@@ -149,7 +152,8 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
                     card['stage']={'lld':'lld_review','hld':'hld_review','review':'playtest','spark':'spark'}[kind]
                     if kind=='review': plans[iid].setdefault('review',{})['status']='pass'; sync(iid)
             if job.get('enabled') and not lane_reasons.get(actor):
-                heapq.heappush(heap,(at,seq,'pick',jidx,None)); seq+=1
+                retry=next_check(job,at) if actor=='gemma' else at
+                if retry: heapq.heappush(heap,(retry,seq,'pick',jidx,None)); seq+=1
             continue
         q=dispatch(agent,cards,projs,spot,u.stamp(at),due or {},finishing_ids)
         running=active.pop(actor,None)
@@ -262,4 +266,6 @@ def compare(base, changed, kind, target):
         other=changed['initiatives'].get(iid,{})
         if date(eta.get('completion_at')) and date(other.get('completion_at')) and date(other['completion_at'])>date(eta['completion_at']):
             delayed.append({'initiative_id':int(iid),'seconds':(date(other['completion_at'])-date(eta['completion_at'])).total_seconds(),'completion_at':other['completion_at']})
+        elif date(eta.get('completion_at')) and not other.get('completion_at'):
+            delayed.append({'initiative_id':int(iid),'seconds':None,'reason':other.get('reason','outside next 24h')})
     return {'eta_now':before,'if_prioritized':after,'delayed':delayed,'read_only':True}

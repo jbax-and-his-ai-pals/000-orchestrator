@@ -242,7 +242,7 @@
     const who=a=>({gemma:'Gemma',codex:'Codex',claude:'Claude'})[a]||owner(a),ctx=data.priority_context,ekey=e=>[e.project,e.initiative_id];
     for(const g of groups.values()) g.list=prioritize(g.list,ctx,ekey);
     return '<h2>Next work · by when</h2>'+[...groups.values()].map(g=>'<section class="when-group"><h3>'+esc(g.label)+' <span class="hint">'+g.list.length+'</span></h3><ol class="when-list">'+g.list.map(e=>
-      '<li><div class="when-time"><strong>'+esc(clock(e.start_at))+'</strong><span>'+esc(until(e.start_at))+'</span></div>'
+      '<li><div class="when-time"><strong>'+esc(until(e.start_at))+'</strong><span>'+esc(clock(e.start_at))+'</span></div>'
       +'<span class="actor-chip '+esc(e.actor)+'">'+esc(who(e.actor))+'</span>'
       +'<div class="when-what"><a href="'+esc(e.href)+'">'+esc(describe(e))+'</a>'+prioTag(ctx,e.project,e.initiative_id)+'<p>'+esc([plain(e.work_type),e.initiative_id?'#'+e.initiative_id:'',e.basis_label].filter(Boolean).join(' · '))+'</p></div>'
       +'<a class="when-proj" href="#/project/'+encodeURIComponent(e.project)+'">'+esc(e.project)+'</a>'

@@ -72,7 +72,7 @@ Every command prints JSON; errors arrive as `{"error": ...}` with the fix in the
    - Can't find a credible fix? `ORCH issue-release <id> --to retry --note "<what you tried, what's unclear>"`.
      Needs a human decision (direction, taste, hardware)? `--to producer`. Not a real problem? `--to dismiss`.
      Never leave a claimed issue without one of these.
-5. **Optimization hunt** (if time remains): read 3–4 dossiers (`SCAN.json` largest files, `SMOKE.json`, the
+5. **Optimization hunt** (if time remains; `high`/`medium` priority projects only, never `low`): read 3–4 dossiers (`SCAN.json` largest files, `SMOKE.json`, the
    Bottlenecks section). Pitch at most 2 concrete `optimization` sparks with evidence:
    `ORCH add-spark --project <repo> --category optimization --title "..." --pitch @file`.
 6. Finish with `ORCH log "<one-line summary of this run>"`.

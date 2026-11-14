@@ -68,6 +68,14 @@ class IssueTests(unittest.TestCase):
         self.assertEqual(reopened['status'], 'triage')
         self.assertIn('road graph', reopened['note'])
 
+    def test_low_priority_issues_are_parked(self):
+        self.dossier('No tests.')
+        orch.set_issues_autosolve(True, 'producer')
+        orch.update_project('a', {'priority': 'low'}, 'producer')
+        self.assertEqual(orch.queue('planner')['issues_to_solve'], [])
+        orch.update_project('a', {'priority': 'medium'}, 'producer')
+        self.assertEqual(len(orch.queue('planner')['issues_to_solve']), 1)
+
     def test_attempt_cap_sends_to_producer(self):
         self.dossier('No tests.')
         iid = orch.list_issues()[0]['id']

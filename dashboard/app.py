@@ -21,6 +21,9 @@ sys.path.insert(0, str(HERE.parent / "scripts"))
 import orch  # noqa: E402
 
 import utilization
+import steering
+import overview
+import dashboard_ops
 
 
 @asynccontextmanager
@@ -79,6 +82,16 @@ async def orch_error(_: Request, exc: orch.OrchError):
     return JSONResponse({"error": str(exc)}, status_code=400)
 
 
+@app.exception_handler(steering.Conflict)
+async def conflict_error(_: Request, exc: steering.Conflict):
+    return JSONResponse({"error":str(exc)},status_code=409)
+
+
+@app.exception_handler(utilization.CollectorError)
+async def collector_error(_: Request, exc: utilization.CollectorError):
+    return JSONResponse({"error":exc.reason,"outcome":"unknown"},status_code=503)
+
+
 @app.get("/api/version")
 def version():
     return {"version": state_version()}
@@ -132,22 +145,23 @@ def project(name: str):
         events = orch.rows(con, "SELECT * FROM events WHERE project_name=? ORDER BY id DESC LIMIT 25", name)
     d = orch.DOSSIERS / name
     scan = d / "SCAN.json"
-    return {"project": p, "initiatives": inits, "events": events, "focus": orch.active_focus(p),
+    return {"project": p, "project_version":orch.project_version(p), "initiatives": inits, "events": events, "focus": orch.active_focus(p),
             "dossier_html": read_md(d / "DOSSIER.md"), "audit_html": read_md(d / "AUDIT_NOTES.md"),
             "scan": json.loads(scan.read_text(encoding="utf-8")) if scan.exists() else None}
 
 
 class ProjectPatch(BaseModel):
+    expected_version: str | None = None
     priority: str | None = None
     complexity: str | None = None
 
 
 @app.post("/api/projects/{name}")
 def patch_project(name: str, body: ProjectPatch):
-    fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    fields = {k: v for k, v in body.model_dump().items() if v is not None and k != "expected_version"}
     if not fields:
         raise HTTPException(400, "nothing to update")
-    return orch.update_project(name, fields, "producer")
+    return orch.update_project(name, fields, "producer", body.expected_version)
 
 
 @app.get("/api/initiatives/{iid}")
@@ -158,7 +172,7 @@ def initiative(iid: int):
     d = orch.DESIGNS / f"{i['id']:04d}-{i['slug']}"
     plan = json.loads(i["execution_plan_json"]) if i["execution_plan_json"] else None
     return {
-        "initiative": i, "events": events, "plan": plan,
+        "initiative": i, "events": events, "plan": plan, "version":steering.version(i), "plan_version":steering.version(i["execution_plan_json"]),
         "pitch_html": read_md(d / "PITCH.md") or render_md(i["pitch_summary"] or ""),
         "hld_html": read_md(i["hld_path"]), "lld_html": read_md(i["lld_path"]),
         "revisions_html": read_md(d / "REVISIONS.md"),
@@ -252,3 +266,55 @@ def index():
 
 
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+
+
+@app.get('/api/overview')
+def overview_api():
+    try:
+        result=overview.snapshot(orch)
+        result['portfolio_version']=state_version()
+        return result
+    except utilization.sqlite3.Error:
+        return JSONResponse({'error':'db_busy'},status_code=503)
+
+class PriorityBody(BaseModel):
+    priority: Literal['high','medium','low']
+    expected_version: str
+
+class ReorderBody(BaseModel):
+    order: list[int]
+    expected_plan_version: str
+
+class LaneBody(BaseModel):
+    enabled: bool
+    expected_generation: int
+
+class IdeaBody(BaseModel):
+    title: str
+    pitch: str
+    category: Literal['fun_gameplay','visual_craft','optimization','tech_audacity','new_game']
+    idempotency_key: str
+
+@app.post('/api/initiatives/{iid}/priority')
+def priority_api(iid:int,body:PriorityBody):
+    return orch.set_initiative(iid,body.priority,body.expected_version,'producer')
+
+@app.post('/api/initiatives/{iid}/subtasks/reorder')
+def reorder_api(iid:int,body:ReorderBody):
+    return orch.reorder_subtasks(iid,body.order,body.expected_plan_version,'producer')
+
+@app.post('/api/lanes/{declaration}/control')
+def lane_api(declaration:str,body:LaneBody):
+    return orch.lane_control(declaration,body.enabled,body.expected_generation,'producer')
+
+@app.post('/api/suggestions')
+def idea_api(body:IdeaBody):
+    title=body.title.strip(); pitch=body.pitch.strip()
+    if not 1<=len(title)<=160 or not 1<=len(pitch)<=4000:
+        raise HTTPException(422,'title 1..160 and pitch 1..4000 characters required')
+    return orch.add_spark('000-orchestrator',body.category,title,pitch,'producer',idempotency=body.idempotency_key)
+
+@app.get('/api/initiatives/{iid}/subtasks/{sid}')
+def subtask_api(iid:int,sid:int,before:int|None=None):
+    if before is not None and before<=0: raise HTTPException(422,'invalid cursor')
+    return dashboard_ops.subtask_detail(orch,iid,sid,before)

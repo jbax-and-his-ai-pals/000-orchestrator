@@ -664,12 +664,22 @@ def design_dir(init: dict) -> Path:
 
 
 def add_spark(project: str, category: str, title: str, pitch: str, actor: str,
-              complexity: str | None = None) -> dict:
+              complexity: str | None = None, idempotency: str | None = None) -> dict:
     if category not in CATEGORIES:
         raise OrchError(f"category must be one of {CATEGORIES}")
     check_focus(project, actor)
     check_spotlight(project, actor, category)
     with db(write=True) as con:
+        receipt = None
+        body_hash = steering.version([project,category,title,pitch])
+        if idempotency is not None:
+            if not re.fullmatch(r"[a-zA-Z0-9-]{8,100}",idempotency): raise OrchError("invalid idempotency key")
+            receipt = "idea:"+idempotency
+            saved = con.execute("SELECT value FROM settings WHERE key=?",(receipt,)).fetchone()
+            if saved:
+                data = json.loads(saved[0])
+                steering.expect(data["hash"],body_hash)
+                return get_initiative(con,data["id"])
         if project != "NEW_CONCEPT":
             proj = get_project(con, project)
             complexity = complexity or proj["complexity"]
@@ -689,6 +699,9 @@ def add_spark(project: str, category: str, title: str, pitch: str, actor: str,
         (design_dir(init) / "PITCH.md").write_text(
             f"# {title}\n\n- **Project:** {project}\n- **Category:** {category}\n- **Complexity:** {complexity}\n"
             f"- **Pitched by:** {actor} at {ts}\n\n{pitch.strip()}\n", encoding="utf-8")
+        if receipt:
+            con.execute("INSERT INTO settings VALUES (?,?)",(receipt,json.dumps({"id":init["id"],"hash":body_hash,"at":now()})))
+            con.execute("DELETE FROM settings WHERE key IN (SELECT key FROM settings WHERE key LIKE 'idea:%' ORDER BY json_extract(value,'$.at') DESC LIMIT -1 OFFSET 100)")
         log_event(con, actor, "spark", title, project, init["id"])
         return init
 
@@ -1251,6 +1264,11 @@ def review_build(iid: int, verdict: str, note: str, actor: str) -> dict:
         return get_initiative(con, iid)
 
 
+def lane_control(declaration, enabled, expected, actor, controller=None):
+    import dashboard_ops
+    return dashboard_ops.lane_control(sys.modules[__name__],declaration,enabled,expected,actor,controller)
+
+
 def project_version(project):
     return steering.version({k:project.get(k) for k in sorted(PROJECT_FIELDS)})
 
@@ -1724,6 +1742,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--as", dest="actor", default=os.environ.get("ORCH_ACTOR", "cli"),
                     help="who is acting (scout-gemma, architect-claude, planner-codex, producer)")
     sp = ap.add_subparsers(dest="cmd", required=True)
+    p = sp.add_parser("lane-control")
+    p.add_argument("declaration"); p.add_argument("--enabled",choices=("true","false"),required=True); p.add_argument("--expected",type=int,required=True)
     p = sp.add_parser("set-initiative")
     p.add_argument("id",type=int); p.add_argument("--priority",required=True); p.add_argument("--expected",required=True)
     p = sp.add_parser("reorder-subtasks")
@@ -1868,6 +1888,8 @@ def main(argv: list[str] | None = None) -> int:
                 sql = "SELECT repo_name, stack, priority, complexity, playability_score, visual_maturity, " \
                       "last_scanned_at, is_git FROM projects"
                 out = rows(con, sql + ("" if a.all else " WHERE priority != 'skip'") + " ORDER BY repo_name")
+        elif a.cmd == "lane-control":
+            out = lane_control(a.declaration,a.enabled=="true",a.expected,actor)
         elif a.cmd == "set-initiative":
             out = set_initiative(a.id,a.priority,a.expected,actor)
         elif a.cmd == "reorder-subtasks":
@@ -1976,4 +1998,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
 

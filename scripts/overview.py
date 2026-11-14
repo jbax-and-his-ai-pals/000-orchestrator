@@ -30,7 +30,7 @@ def durations(events,now):
         if details.get('attempt'):
             sid=details.get('subtask_id'); status=details.get('to'); token=details['attempt']
         else:
-            match=re.fullmatch(r'(d+) -> (doing|done|blocked):.*',event.get('message') or '',re.S)
+            match=re.fullmatch(r'(\d+) -> (doing|done|blocked):.*',event.get('message') or '',re.S)
             if not match: continue
             sid=int(match[1]); status=match[2]; token='legacy'
         key=(actor,event['initiative_id'],sid,token)
@@ -113,7 +113,7 @@ def snapshot(orch,clock=None):
               'age_seconds':max(0,(now-(date(entered or i['created_at']) or now)).total_seconds()),
               'last_activity_at':history[0]['ts'] if history else None,'eligibility':reason or 'eligible',
               'href':'#/initiative/'+str(i['id']),'priority':i.get('priority','medium'),'version':steering.version(i)}
-        rows.append(base)
+        if i["stage"] not in orch.AWAITING_PRODUCER: rows.append(base)
         if i['stage']=='spark':
             pending['sparks'].append(base)
             if i['project_name']=='000-orchestrator': suggestions.append(base)
@@ -155,6 +155,8 @@ def snapshot(orch,clock=None):
             elif queue.get('job')=='subtask': candidate=queue; kind='build'
             fresh=observation['status']=='ok'
             start=job.get('started_at') if fresh else None
+            if start and candidate and candidate.get('subtask',{}).get('status') != 'doing':
+                candidate=None  # a running cron alone does not identify a task
             if not start and fresh and job['enabled']: start=job.get('next_run_at')
             if start and date(start)<now and not job.get('started_at'): start=None
             if lane['quota']['state']=='exhausted': start=None

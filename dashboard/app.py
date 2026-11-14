@@ -135,7 +135,7 @@ def state():
         events = orch.rows(con, "SELECT * FROM events ORDER BY id DESC LIMIT 60")
         latest = {r["project_name"]: r for r in orch.rows(
             con, "SELECT e.* FROM events e JOIN (SELECT project_name, MAX(id) mid FROM events "
-                 "WHERE project_name IS NOT NULL AND actor != 'init' GROUP BY project_name) m ON e.id = m.mid")}
+                 "WHERE project_name IS NOT NULL AND actor != 'init' AND kind != 'issue' GROUP BY project_name) m ON e.id = m.mid")}
     for p in projects:
         p["focus"] = orch.active_focus(p)
         p["latest_activity"] = latest.get(p["repo_name"])
@@ -151,7 +151,11 @@ def state():
                                   "review": plan.get("review", {}).get("status")}
         i.pop("execution_plan_json", None)
     cfg = orch.load_config()
+    with orch.db() as con:
+        issues = orch.rows(con, "SELECT * FROM issues WHERE status != 'dismissed' ORDER BY id")
+        autosolve = orch.issues_autosolve(con)
     return {"version": state_version(), "projects": projects, "initiatives": inits, "events": events,
+            "issues": issues, "issues_autosolve": autosolve,
             "spotlight": orch.get_spotlight(), "aspects": sorted(orch.ASPECTS),
             "config": {"metrics": cfg["metrics"], "poll_seconds": cfg["dashboard"]["poll_seconds"],
                        "webhooks_enabled": cfg["webhooks"].get("enabled", False)},

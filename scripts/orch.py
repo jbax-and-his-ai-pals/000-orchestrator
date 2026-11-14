@@ -108,7 +108,7 @@ SEED = {
 
 DEFAULT_CONFIG = {
     "dashboard": {"host": "127.0.0.1", "port": 8420, "poll_seconds": 4},
-    "metrics": ["stack", "player_experience", "playability_score", "visual_maturity", "complexity", "last_scanned_at"],
+    "metrics": ["stack", "description", "player_experience", "playability_score", "visual_maturity", "complexity", "last_scanned_at"],
     "webhooks": {
         "enabled": False,
         "urls": [],
@@ -267,6 +267,21 @@ CREATE TABLE IF NOT EXISTS events (
     message TEXT
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS issues (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_name TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'bottleneck',
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'triage'
+        CHECK (status IN ('triage','investigating','proposed','needs_producer','dismissed')),
+    spark_id INTEGER,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    owner TEXT,
+    note TEXT,
+    source TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS metrics (ts TEXT NOT NULL, source TEXT NOT NULL, key TEXT NOT NULL, value REAL, meta TEXT);
 CREATE INDEX IF NOT EXISTS idx_metrics_source_key_ts ON metrics(source,key,ts);
 CREATE INDEX IF NOT EXISTS idx_metrics_ts ON metrics(ts);
@@ -312,7 +327,7 @@ def init_db() -> None:
         if col not in have:
             con.execute(f"ALTER TABLE initiatives ADD COLUMN {col} TEXT")
     have = {r[1] for r in con.execute("PRAGMA table_info(projects)")}
-    for col in ("focus_by", "focus_until", "focus_note", "player_experience"):
+    for col in ("focus_by", "focus_until", "focus_note", "player_experience", "description"):
         if col not in have:
             con.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
     if "priority" not in {r[1] for r in con.execute("PRAGMA table_info(initiatives)")}:
@@ -410,7 +425,7 @@ def get_project(con, name: str) -> dict:
 
 
 PROJECT_FIELDS = {"stack", "priority", "complexity", "playability_score", "visual_maturity",
-                  "optimization_notes", "bottleneck_summary", "player_experience"}
+                  "optimization_notes", "bottleneck_summary", "player_experience", "description"}
 
 
 def update_project(name: str, fields: dict, actor: str = "dashboard", expected: str | None = None) -> dict:
@@ -609,6 +624,13 @@ def smoke(name: str, actor: str = "scout") -> dict:
     return result
 
 
+def dossier_description(text: str) -> str | None:
+    """The one-line `- **What it is:**` from a dossier's Snapshot, unless it is unknown."""
+    m = re.search(r"^-\s*\*\*What it is:\*\*\s*(.+)$", text, re.M | re.I)
+    desc = " ".join(m.group(1).split()) if m else ""
+    return desc[:400] if desc and not desc.lower().startswith("unknown") else None
+
+
 def frontier_author(path: Path) -> str | None:
     """The non-Gemma author named on a dossier's `_Author: <actor> · ...` line, if any."""
     if not path.exists():
@@ -637,6 +659,9 @@ def write_dossier(name: str, text: str, actor: str, fields: dict | None = None) 
     exp = section("## Player experience")
     if exp and not exp.lower().startswith("unknown"):
         fields["player_experience"] = " ".join(exp.split())[:1200]
+    desc = dossier_description(text)
+    if desc:
+        fields["description"] = desc
     d = DOSSIERS / name
     if actor in SCOUT_ACTORS and frontier_author(d / "DOSSIER.md"):
         # A frontier agent wrote the current dossier: Gemma's template refresh must not flatten it or its scores.
@@ -664,7 +689,150 @@ def write_dossier(name: str, text: str, actor: str, fields: dict | None = None) 
     with db(write=True) as con:
         con.execute("UPDATE projects SET last_scanned_at=? WHERE repo_name=?", (now(), name))
         log_event(con, actor, "dossier", "DOSSIER.md updated", name)
+        if fields.get("bottleneck_summary"):
+            raise_bottleneck(con, name, fields["bottleneck_summary"], actor, "dossier")
     return path
+
+
+# ---------------------------------------------------------------- issues (bottlenecks needing a proposed fix)
+
+ISSUE_MAX_ATTEMPTS = 3
+ISSUE_STALE_SECONDS = 6 * 3600
+
+
+def raise_bottleneck(con, project: str, text: str, actor: str, source: str) -> int | None:
+    """One live bottleneck issue per project. A changed bottleneck updates it while still in triage, or opens a new
+    one once the old one has a proposal. Repeating the same text changes nothing."""
+    text = " ".join(text.split())[:300]
+    last = con.execute("SELECT * FROM issues WHERE project_name=? AND kind='bottleneck' AND status!='dismissed' "
+                       "ORDER BY id DESC LIMIT 1", (project,)).fetchone()
+    if last and last["title"] == text:
+        return last["id"]
+    if last and last["status"] == "triage":
+        con.execute("UPDATE issues SET title=?, updated_at=? WHERE id=?", (text, now(), last["id"]))
+        log_event(con, actor, "issue", f"issue {last['id']} updated (Triage Board)", project)
+        return last["id"]
+    if last and last["status"] in ("investigating", "needs_producer"):
+        return last["id"]  # someone is on it, or it waits on the producer: don't churn it
+    ts = now()
+    cur = con.execute("INSERT INTO issues(project_name,kind,title,source,created_at,updated_at) VALUES (?,?,?,?,?,?)",
+                      (project, "bottleneck", text, source, ts, ts))
+    log_event(con, actor, "issue", f"issue {cur.lastrowid} opened from the dossier's biggest blocker (Triage Board)", project)
+    return cur.lastrowid
+
+
+def get_issue(con, issue_id: int) -> dict:
+    r = con.execute("SELECT * FROM issues WHERE id=?", (issue_id,)).fetchone()
+    if not r:
+        raise OrchError(f"unknown issue: #{issue_id}")
+    return dict(r)
+
+
+def list_issues(status: str | None = None, project: str | None = None) -> list[dict]:
+    sql, args = "SELECT * FROM issues WHERE 1=1", []
+    if status:
+        sql += " AND status=?"
+        args.append(status)
+    if project:
+        sql += " AND project_name=?"
+        args.append(project)
+    with db() as con:
+        return rows(con, sql + " ORDER BY id", *args)
+
+
+def issues_autosolve(con) -> bool:
+    r = con.execute("SELECT value FROM settings WHERE key='issues_autosolve'").fetchone()
+    return bool(r and r[0] == "on")
+
+
+def set_issues_autosolve(on: bool, actor: str) -> dict:
+    with db(write=True) as con:
+        con.execute("INSERT INTO settings(key,value) VALUES ('issues_autosolve',?) "
+                    "ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("on" if on else "off",))
+        log_event(con, actor, "issue", f"issue autosolve {'on' if on else 'off'}")
+    return {"issues_autosolve": "on" if on else "off"}
+
+
+def issues_to_solve(con, spot: dict | None, clock: str) -> list[dict]:
+    """Issues an agent may pick up: in triage, or investigating but abandoned (stale), on projects agents may touch.
+    Empty unless the producer turned autosolve on (`orch.py issues-autosolve on`)."""
+    if not issues_autosolve(con):
+        return []
+    out = []
+    for i in rows(con, "SELECT i.*, p.priority, p.focus_by, p.focus_until FROM issues i JOIN projects p "
+                       "ON p.repo_name=i.project_name WHERE i.status IN ('triage','investigating') "
+                       "AND p.priority!='skip' ORDER BY CASE p.priority WHEN 'high' THEN 0 WHEN 'medium' THEN 1 "
+                       "ELSE 2 END, i.id"):
+        if i["status"] == "investigating" and steering.recent(i["updated_at"], clock, ISSUE_STALE_SECONDS):
+            continue
+        if steering.eligibility({}, i, None, clock) == "project focus":
+            continue
+        if spot and i["project_name"] != spot["project"]:
+            continue
+        out.append({k: i[k] for k in ("id", "project_name", "title", "status", "attempts", "note")})
+    return out
+
+
+def issue_claim(issue_id: int, actor: str) -> dict:
+    with db(write=True) as con:
+        i = get_issue(con, issue_id)
+        check_focus(i["project_name"], actor)
+        stale = i["status"] == "investigating" and not steering.recent(i["updated_at"], now(), ISSUE_STALE_SECONDS)
+        if i["status"] != "triage" and not stale:
+            raise OrchError(f"issue #{issue_id} is {i['status']}, not open for pickup")
+        con.execute("UPDATE issues SET status='investigating', owner=?, attempts=attempts+1, updated_at=? WHERE id=?",
+                    (actor, now(), issue_id))
+        log_event(con, actor, "issue", f"issue {issue_id} investigating (attempt {i['attempts'] + 1})",
+                  i["project_name"])
+        return get_issue(con, issue_id)
+
+
+def issue_propose(issue_id: int, category: str, title: str, pitch: str, actor: str,
+                  complexity: str | None = None) -> dict:
+    with db() as con:
+        i = get_issue(con, issue_id)
+    if i["status"] != "investigating":
+        raise OrchError(f"issue #{issue_id} is {i['status']}: run issue-claim first")
+    spark = add_spark(i["project_name"], category, title,
+                      f"Proposed fix for issue #{issue_id} (bottleneck: {i['title']})\n\n{pitch}", actor, complexity)
+    with db(write=True) as con:
+        con.execute("UPDATE issues SET status='proposed', spark_id=?, owner=NULL, note=?, updated_at=? WHERE id=?",
+                    (spark["id"], f"proposed as spark #{spark['id']}", now(), issue_id))
+        log_event(con, actor, "issue", f"issue {issue_id} proposed as spark #{spark['id']}", i["project_name"],
+                  spark["id"])
+        return {"issue": get_issue(con, issue_id), "spark": spark}
+
+
+def issue_release(issue_id: int, note: str, actor: str, to: str = "retry") -> dict:
+    """Give an issue back. retry: to triage, or to the producer after ISSUE_MAX_ATTEMPTS tries. producer: needs a
+    human decision. dismiss: not a real problem. reopen: back to triage (producer/conductor)."""
+    if not note.strip():
+        raise OrchError("say why (the next agent or the producer reads it)")
+    with db(write=True) as con:
+        i = get_issue(con, issue_id)
+        status = {"retry": "needs_producer" if i["attempts"] >= ISSUE_MAX_ATTEMPTS else "triage",
+                  "producer": "needs_producer", "dismiss": "dismissed", "reopen": "triage"}[to]
+        con.execute("UPDATE issues SET status=?, owner=NULL, note=?, updated_at=? WHERE id=?",
+                    (status, note.strip()[:600], now(), issue_id))
+        log_event(con, actor, "issue", f"issue {issue_id} -> {status}: {note.strip()[:120]}", i["project_name"])
+        return get_issue(con, issue_id)
+
+
+def backfill_issues(actor: str) -> dict:
+    """Open issues from existing bottleneck_summary values and fill description from dossiers (one-off after upgrade)."""
+    opened, described = 0, 0
+    with db(write=True) as con:
+        for p in rows(con, "SELECT repo_name, bottleneck_summary, description FROM projects"):
+            if p["bottleneck_summary"] and p["bottleneck_summary"].strip():
+                before = con.execute("SELECT COUNT(*) FROM issues").fetchone()[0]
+                raise_bottleneck(con, p["repo_name"], p["bottleneck_summary"], actor, "backfill")
+                opened += con.execute("SELECT COUNT(*) FROM issues").fetchone()[0] - before
+            f = DOSSIERS / p["repo_name"] / "DOSSIER.md"
+            desc = dossier_description(f.read_text(encoding="utf-8", errors="replace")) if f.exists() else None
+            if desc and desc != p["description"]:
+                con.execute("UPDATE projects SET description=? WHERE repo_name=?", (desc, p["repo_name"]))
+                described += 1
+    return {"issues_opened": opened, "descriptions_set": described}
 
 
 # ---------------------------------------------------------------- initiatives
@@ -1421,6 +1589,11 @@ def reject(iid: int, note: str, actor: str = "producer") -> dict:
             raise OrchError(f"#{iid} is already {init['stage']}")
         deleted = delete_branch(con, init)
         append_taste(init, note)
+        for issue in rows(con, "SELECT id FROM issues WHERE spark_id=? AND status='proposed'", iid):
+            con.execute("UPDATE issues SET status='triage', spark_id=NULL, note=?, updated_at=? WHERE id=?",
+                        (f"spark #{iid} rejected: {note.strip()[:500]}", now(), issue["id"]))
+            log_event(con, actor, "issue", f"issue {issue['id']} reopened: spark #{iid} rejected",
+                      init["project_name"])
         msg = f"Rejected at {init['stage']}: {note}" + (f" (deleted {deleted})" if deleted else "")
         return _set_stage(con, init, "rejected", actor, msg[:300], rejection_reason=note,
                           claimed_by=None, claimed_at=None, claim_expires_at=None, claim_note=None)
@@ -1654,6 +1827,10 @@ def queue(agent: str) -> dict:
                              "FROM projects WHERE priority != 'skip' ORDER BY CASE priority WHEN 'high' THEN 0 "
                              "WHEN 'medium' THEN 1 ELSE 2 END, COALESCE(last_scanned_at, '') ASC")
     spot = get_spotlight()
+    solve = []
+    if agent in ("planner", "architect"):
+        with db() as con:
+            solve = issues_to_solve(con, spot, now())
     result = queue_from_snapshot(agent, inits, projects, spot, now(),
         {actor:handoffs_due(spot,actor) for actor in ("gemma","codex","claude")},
         {i["id"] for i in inits if finishing(spot,i["id"])})
@@ -1661,6 +1838,8 @@ def queue(agent: str) -> dict:
     for item in items:
         if item.get("worktree"):
             item["new_files"] = [f for f in item["subtask"].get("files", []) if not (Path(item["worktree"]) / f).exists()]
+    if agent in ("planner", "architect"):
+        result["issues_to_solve"] = solve
     return result
 
 
@@ -1874,6 +2053,24 @@ def main(argv: list[str] | None = None) -> int:
     s = sp.add_parser("rehome", help="attach a NEW_CONCEPT card to a repo")
     s.add_argument("id", type=int)
     s.add_argument("project")
+    s = sp.add_parser("issues", help="list bottleneck issues")
+    s.add_argument("--status", choices=["triage", "investigating", "proposed", "needs_producer", "dismissed"])
+    s.add_argument("--project")
+    s = sp.add_parser("issue-claim", help="start investigating an issue (counts an attempt)")
+    s.add_argument("id", type=int)
+    s = sp.add_parser("issue-propose", help="file the proposed fix as a spark on the issue's project")
+    s.add_argument("id", type=int)
+    s.add_argument("--category", required=True, choices=CATEGORIES)
+    s.add_argument("--title", required=True)
+    s.add_argument("--pitch", required=True, help="pitch text, or @file to read it from a file")
+    s.add_argument("--complexity", choices=COMPLEXITIES)
+    s = sp.add_parser("issue-release", help="give an issue back: retry, producer, dismiss or reopen")
+    s.add_argument("id", type=int)
+    s.add_argument("--to", choices=["retry", "producer", "dismiss", "reopen"], default="retry")
+    s.add_argument("--note", required=True)
+    s = sp.add_parser("issues-autosolve", help="let Codex/Claude queues pick up issues (producer decision)")
+    s.add_argument("state", choices=["on", "off"])
+    sp.add_parser("backfill-issues", help="one-off: open issues from current bottlenecks, fill descriptions")
     s = sp.add_parser("dispatch", help="record a run launched from chat, so the dashboard shows it")
     s.add_argument("phase", choices=["start", "end"])
     s.add_argument("--lane", required=True, choices=["gemma", "codex", "claude", "gemini"])
@@ -2005,6 +2202,19 @@ def main(argv: list[str] | None = None) -> int:
             out = reject(a.id, a.note, actor)
         elif a.cmd == "rehome":
             out = rehome(a.id, a.project, actor)
+        elif a.cmd == "issues":
+            out = list_issues(a.status, a.project)
+        elif a.cmd == "issue-claim":
+            out = issue_claim(a.id, actor)
+        elif a.cmd == "issue-propose":
+            pitch = Path(a.pitch[1:]).read_text(encoding="utf-8") if a.pitch.startswith("@") else a.pitch
+            out = issue_propose(a.id, a.category, a.title, pitch, actor, a.complexity)
+        elif a.cmd == "issue-release":
+            out = issue_release(a.id, a.note, actor, a.to)
+        elif a.cmd == "issues-autosolve":
+            out = set_issues_autosolve(a.state == "on", actor)
+        elif a.cmd == "backfill-issues":
+            out = backfill_issues(actor)
         elif a.cmd == "dispatch":
             with db(write=True) as con:
                 log_event(con, actor, "dispatch_" + a.phase, a.label or a.run, a.project, None,

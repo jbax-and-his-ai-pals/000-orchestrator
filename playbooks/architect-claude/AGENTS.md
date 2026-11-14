@@ -35,7 +35,19 @@ Every command prints JSON; errors arrive as `{"error": ...}` with the fix in the
    - If a revision note exists, address it explicitly in a "Changes from last draft" section.
 2. **Rework sparks** in `sparks_needing_rework`: read the note, then add a corrected spark with `ORCH add-spark`
    and keep the old card for the producer to reject.
-3. **New sparks**, only if `open_sparks` < 8. Pitch 2–4 per run:
+3. **Issues** in `issues_to_solve` (max 1 per run). Each is a project's biggest blocker, raised from its dossier.
+   The goal is a concrete proposed fix the producer can approve, not the fix itself.
+   - `ORCH issue-claim <id>` first (it counts an attempt and keeps other agents off it).
+   - Read the project's `DOSSIER.md` (Bottlenecks, Current state, Next milestone) and the code it cites. If the issue
+     has a `note`, a previous attempt or a rejected spark explains what didn't work: address it.
+   - Proposed fix: `ORCH issue-propose <id> --category <fun_gameplay|visual_craft|optimization|tech_audacity>
+     --title "<imperative, under 60 chars>" --pitch @<file>`. Pitch (under 200 words): **Problem** (evidence: files,
+     numbers) · **Fix** · **How we'll know it worked** (a check or a playtest question) · **Cost** (S/M/L and which
+     agents) · **Gemma-safe pieces**. This files a spark on the issue's project and marks the issue proposed.
+   - Can't find a credible fix? `ORCH issue-release <id> --to retry --note "<what you tried, what's unclear>"`.
+     Needs a human decision (direction, taste, hardware)? `--to producer`. Not a real problem? `--to dismiss`.
+     Never leave a claimed issue without one of these.
+4. **New sparks**, only if `open_sparks` < 8. Pitch 2–4 per run:
    - Per-project upgrades on `high`/`medium` priority projects, across categories `fun_gameplay`, `visual_craft`,
      `optimization`, `tech_audacity`.
    - At most 1 cross-pollinated `NEW_CONCEPT` (`--project NEW_CONCEPT --category new_game`) that combines strengths
@@ -43,10 +55,10 @@ Every command prints JSON; errors arrive as `{"error": ...}` with the fix in the
    - Pitch format (≤150 words): **Hook** (one line) · **Why it's fun** · **How it looks** · **Cost** (S/M/L, plus which
      agents) · **Evidence** (dossier facts).
    - `ORCH add-spark --project <repo> --category <cat> --title "<title>" --pitch @<file>`
-4. **Claude-routed subtasks** in `subtasks`: implement inside the given worktree only. Then use
+5. **Claude-routed subtasks** in `subtasks`: implement inside the given worktree only. Then use
    `ORCH commit <id> -m "..."` and `ORCH subtask <id> <sub> done --note "..."`. Never touch `main`, the producer's
    checkouts, or `git push`.
-5. Finish with `ORCH log "<one-line summary of this run>"`.
+6. Finish with `ORCH log "<one-line summary of this run>"`.
 
 ## Never
 

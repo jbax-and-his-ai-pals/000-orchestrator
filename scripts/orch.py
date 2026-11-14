@@ -264,6 +264,9 @@ CREATE TABLE IF NOT EXISTS events (
     message TEXT
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS metrics (ts TEXT NOT NULL, source TEXT NOT NULL, key TEXT NOT NULL, value REAL, meta TEXT);
+CREATE INDEX IF NOT EXISTS idx_metrics_source_key_ts ON metrics(source,key,ts);
+CREATE INDEX IF NOT EXISTS idx_metrics_ts ON metrics(ts);
 CREATE INDEX IF NOT EXISTS idx_init_stage ON initiatives(stage);
 CREATE INDEX IF NOT EXISTS idx_events_ts ON events(ts);
 """
@@ -1665,6 +1668,11 @@ def main(argv: list[str] | None = None) -> int:
                     help="who is acting (scout-gemma, architect-claude, planner-codex, producer)")
     sp = ap.add_subparsers(dest="cmd", required=True)
 
+    s = sp.add_parser("quota-snapshot", help="record manual Claude quota readings")
+    s.add_argument("--provider", required=True, choices=["anthropic"])
+    s.add_argument("--window", action="append", required=True, choices=["5h", "weekly"])
+    s.add_argument("--used-pct", action="append", required=True)
+    s.add_argument("--resets-at", action="append", required=True)
     sp.add_parser("init", help="create db, config, taste profile; register projects")
     s = sp.add_parser("sync-repos", help="clone org repos missing locally (never touches existing ones)")
     s.add_argument("--dry-run", action="store_true")
@@ -1778,6 +1786,16 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     actor = a.actor
     try:
+        if a.cmd == "quota-snapshot":
+            from utilization import Store
+            try:
+                store = Store(DB_PATH)
+                store.initialize()
+                out = store.quota_snapshot(a.provider, a.window, a.used_pct, a.resets_at)
+            except (ValueError, TypeError, sqlite3.Error) as exc:
+                raise OrchError(str(exc)) from exc
+            print(json.dumps(out, indent=2))
+            return 0
         if a.cmd != "init":
             init_all() if not DB_PATH.exists() else init_db()
         if a.cmd == "init":

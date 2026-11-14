@@ -17,6 +17,24 @@ class OverviewTests(SteeringTests):
         self.assertTrue(all(x['age_basis']=='creation_fallback' for x in report['in_flight']))
         self.assertEqual(report['lanes'][1]['activity']['state'],'unknown')
         self.assertIsNone(report['next_update'].get('completion_at'))
+    def test_unique_execution_start_correlates_running_task(self):
+        import orch
+        import lane_status
+        orch.subtask_update(1,1,'doing','','planner-codex')
+        now=u.utc(orch.now())
+        jobs=[{'declaration':'orch:planner-codex','id':'job-id','enabled':False,'started_at':u.stamp(now-u.dt.timedelta(seconds=60)),'next_run_at':None}]
+        lane_status.save(u.Store(orch.DB_PATH),jobs,observed=now)
+        report=overview.snapshot(orch,lambda:now)
+        codex=next(l for l in report['lanes'] if l['key']=='codex')
+        self.assertIn('#1 sub 1',codex['activity']['task_ref'])
+        self.assertEqual(codex['scheduler']['state'],'paused')
+        self.assertEqual(report['confirmed_active'],[1])
+        # An older doing flag cannot identify this newer cron run.
+        jobs[0]['started_at']=u.stamp(now+u.dt.timedelta(seconds=1))
+        lane_status.save(u.Store(orch.DB_PATH),jobs,observed=now)
+        report=overview.snapshot(orch,lambda:now)
+        self.assertEqual(report['confirmed_active'],[])
+
     def test_claims_and_waiting_producer(self):
         import orch
         orch.claim(1,'chat-a'); orch.claim(2,'chat-b')

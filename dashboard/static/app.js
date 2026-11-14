@@ -165,10 +165,10 @@ function cardHtml(i) {
   const awaiting = AWAITING.has(i.stage);
   const prog = i.plan_progress ? ` · ${i.plan_progress.done}/${i.plan_progress.total} subtasks` +
     (i.plan_progress.review && i.plan_progress.review !== "pending" ? ` · review ${i.plan_progress.review}` : "") : "";
-  return `<a href="#/initiative/${i.id}" class="card ${awaiting ? "awaiting" : ""}" data-init="${i.id}" id="card-${i.id}">
+  return `<a href="#/initiative/${i.id}" class="card ${awaiting ? "awaiting" : O?.confirmed_active?.includes(i.id) ? "working" : ""}" data-init="${i.id}" id="card-${i.id}">
     <div class="card-sub"><span class="stage ${awaiting ? "awaiting" : ""}">${i.stage}</span>
       <span class="cat cat-${i.category}">${CATEGORY_LABEL[i.category]}</span>${i.complexity === "high" ? `<span class="cat" style="color:var(--violet)">· high</span>` : ""}</div>
-    <div class="card-title">${esc(i.title)}</div>
+    <div class="card-title">${esc(i.title)}${O?.confirmed_active?.includes(i.id) ? ' <span class="badge">confirmed working</span>' : ""}</div>
     <div class="card-sub">${esc(i.project_name === "NEW_CONCEPT" ? "✦ new concept" : short(i.project_name))} · ${ago(i.updated_at)}${prog}</div>
     ${i.revision_note ? `<div class="card-sub" style="color:var(--warn)">↺ ${esc(i.revision_note.slice(0, 90))}</div>` : ""}
     ${i.claim ? `<div class="card-sub claim">💬 in chat: ${esc(i.claim)}</div>` : ""}
@@ -482,7 +482,7 @@ async function showSubtask(iid,sid) {
     $('#drawer-breadcrumbs').innerHTML='<a href="#/">Overview</a> / <a href="#/initiative/'+iid+'">Initiative #'+iid+'</a> / Subtask '+sid;
     $('#drawer-title').textContent=d.title;$('#drawer-eyebrow').textContent=(d.assignee||'unknown')+' · '+d.status;
     $('#drawer-controls').innerHTML='';$('#drawer-tabs').innerHTML='';
-    $('#drawer-body').innerHTML='<h3>Instructions</h3><pre class="raw">'+esc(d.instructions)+'</pre><h3>Acceptance</h3><p>'+esc(d.acceptance)+'</p><h3>Verify</h3><code>'+esc(d.verify)+'</code><pre class="raw">'+esc(d.last_verify?.output_tail||'Not run')+'</pre><h3>Diff · '+esc(d.diff.basis)+'</h3><pre class="raw">'+esc(d.diff.patch||'See initiative Diff / tests for legacy changes.')+'</pre>'+(d.diff.truncated?'<p>Patch truncated.</p>':'')+'<h3>History</h3>'+historyHtml(d.history)+(d.next_cursor?'<button class="btn" id="more-history">More history</button>':'');
+    $('#drawer-body').innerHTML='<h3>Instructions</h3><pre class="raw">'+esc(d.instructions)+'</pre><h3>Acceptance</h3><p>'+esc(d.acceptance)+'</p><h3>Verify</h3><code>'+esc(d.verify)+'</code><pre class="raw">'+esc(d.last_verify?.output_tail||'Not run')+'</pre><h3>Diff · '+esc(d.diff.basis)+'</h3><pre class="raw">'+esc(d.diff.patch||'See initiative Diff / tests for legacy changes.')+'</pre>'+(d.diff.href?'<p><a href="'+esc(d.diff.href)+'">View initiative-wide diff / tests</a></p>':'')+(d.diff.truncated?'<p>Patch truncated.</p>':'')+'<h3>History</h3>'+historyHtml(d.history)+(d.next_cursor?'<button class="btn" id="more-history">More history</button>':'');
     const more=$('#more-history');let cursor=d.next_cursor;if(more)more.onclick=async()=>{more.disabled=true;try{const page=await api('/api/initiatives/'+iid+'/subtasks/'+sid+'?before='+cursor);if(detailSequence.valid(seq)){more.insertAdjacentHTML('beforebegin',historyHtml(page.history));cursor=page.next_cursor;if(!cursor)more.remove();else more.disabled=false;}}catch(err){toast(err.message,true);more.disabled=false;}};
     openDrawer();
   }catch(err){if(detailSequence.valid(seq))toast(err.message,true);}

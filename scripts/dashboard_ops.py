@@ -69,7 +69,7 @@ def subtask_detail(orch,iid,sid,before=None):
             history.append({**e,'attribution':'subtask' if d else 'initiative-wide legacy'})
     result={**sub,'last_verify':{**sub.get('last_verify',{}),'output_tail':sub.get('last_verify',{}).get('output_tail','')[-2500:]},
             'history':history,'next_cursor':events[99]['id'] if len(events)>100 else None,
-            'diff':{'basis':'initiative-wide legacy; subtask attribution unavailable','patch':'','truncated':False},
+            'diff':{'basis':'initiative-wide legacy; subtask attribution unavailable','patch':'','truncated':False,'href':'#/initiative/'+str(iid)},
             'plan_version':steering.version(init['execution_plan_json'])}
     shas=sub.get('commit_shas',[])[:50]
     if not shas: return result

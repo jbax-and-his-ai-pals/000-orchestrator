@@ -58,6 +58,16 @@ class SteeringTests(unittest.TestCase):
         self.assertEqual(json.loads(events[-1]['details_json'])['attempt'],a)
         orch.claim(2,'chat')
         self.assertNotIn(2,[x['initiative'] for x in orch.queue('planner')['subtasks']])
+    def test_racing_expected_versions_only_one_write_wins(self):
+        import concurrent.futures
+        token=steering.version(self.init())
+        def change(priority):
+            try: orch.set_initiative(1,priority,token,'producer'); return 'ok'
+            except steering.Conflict: return 'conflict'
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            outcomes=list(pool.map(change,['high','low']))
+        self.assertEqual(sorted(outcomes),['conflict','ok'])
+
     def test_focus_spotlight_handoff_exclusions(self):
         i={'project_name':'a'}
         self.assertEqual(steering.eligibility(i,{'focus_by':'chat','focus_until':'9999-01-01T00:00:00+00:00'},None,'2026-01-01T00:00:00+00:00'),'project focus')

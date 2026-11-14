@@ -240,6 +240,7 @@ CREATE TABLE IF NOT EXISTS initiatives (
     project_name TEXT NOT NULL,
     category TEXT NOT NULL CHECK (category IN ('fun_gameplay','visual_craft','optimization','tech_audacity','new_game')),
     title TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('high','medium','low')),
     slug TEXT NOT NULL,
     pitch_summary TEXT,
     stage TEXT NOT NULL DEFAULT 'spark' CHECK (stage IN ('spark','hld_draft','hld_review','lld_draft','lld_review','building','playtest','done','rejected')),

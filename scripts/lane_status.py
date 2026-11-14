@@ -52,7 +52,7 @@ def save(store,payload=None,error=None,observed=None):
     timestamp=u.stamp(observed or store.clock())
     with store.connect() as con:
         con.executescript(SCHEMA)
-        con.execute("INSERT INTO lane_observations(source,observed_at,attempted_at,status,payload_json,generation) VALUES ('cron',?,?,?,?,1) ON CONFLICT(source) DO UPDATE SET observed_at=CASE WHEN excluded.status='ok' THEN excluded.observed_at ELSE observed_at END, attempted_at=excluded.attempted_at,status=excluded.status,payload_json=CASE WHEN excluded.status='ok' THEN excluded.payload_json ELSE payload_json END,generation=generation+1",
+        con.execute("INSERT INTO lane_observations(source,observed_at,attempted_at,status,payload_json,generation) VALUES ('cron',?,?,?,?,1) ON CONFLICT(source) DO UPDATE SET observed_at=CASE WHEN excluded.status='ok' THEN excluded.observed_at ELSE observed_at END, attempted_at=excluded.attempted_at,status=excluded.status,payload_json=CASE WHEN excluded.status='ok' THEN excluded.payload_json ELSE payload_json END,generation=generation+1 WHERE excluded.attempted_at>=lane_observations.attempted_at",
                     (timestamp if not error else None,timestamp,error or 'ok',json.dumps(payload) if not error else None))
 
 def read(con,now):
@@ -73,11 +73,12 @@ def lanes(observation,now):
         for declaration in declarations:
             job=next((j for j in observation['jobs'] if j['declaration']==declaration),None)
             if job: jobs.append({**job,'generation':observation['generation'],'controllable':fresh})
+        future=any(j['started_at'] and u.utc(j['started_at'])>now for j in jobs)
         running=[j for j in jobs if j['started_at'] and u.utc(j['started_at'])<=now]
         enabled=[j for j in jobs if j['enabled']]
         result.append({'key':key,'label':key.title(),'jobs':jobs,'observed_at':observation['observed_at'],
-                       'reason':observation['status'] if not fresh else ('job_absent' if len(jobs)!=len(declarations) else None),
-                       'activity':{'state':'working' if fresh and running else 'idle' if fresh and jobs and not running else 'unknown',
+                       'reason':observation['status'] if not fresh else 'clock_skew' if future else ('job_absent' if len(jobs)!=len(declarations) else None),
+                       'activity':{'state':'working' if fresh and running and not future else 'idle' if fresh and jobs and not running and not future else 'unknown',
                                    'started_at':min(j['started_at'] for j in running) if fresh and running else None,'task_ref':None,'basis':'cron' if fresh else 'unknown'},
                        'scheduler':{'state':'unknown' if not fresh or not jobs else 'enabled' if len(enabled)==len(jobs) else 'paused' if not enabled else 'mixed',
                                     'next_run_at':min((j['next_run_at'] for j in enabled if j['next_run_at']),default=None) if fresh else None},

@@ -35,6 +35,8 @@ class LaneTests(unittest.TestCase):
                 self.assertEqual(observation['generation'],2); self.assertEqual(len(observation['jobs']),1)
                 self.assertEqual(lane.lanes(observation,now)[1]['activity']['state'],'unknown')
             lane.save(store,[])
+            lane.save(store,error='timeout',observed=now-u.dt.timedelta(seconds=60))
+            with store.connect() as con: self.assertEqual(lane.read(con,now)['status'],'ok')
             with store.connect() as con: self.assertEqual(lane.read(con,now+u.dt.timedelta(seconds=91))['status'],'stale')
     def test_shared_cron_lease(self):
         with tempfile.TemporaryDirectory() as temp:

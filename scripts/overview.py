@@ -140,7 +140,7 @@ def snapshot(orch,clock=None):
                 if details.get('subtask_id')==sub['id'] and details.get('to')==sub.get('status') and details.get('from')!=details.get('to'):
                     changes.append(event)
             if changes:
-                row.update(stage_entered_at=changes[0]['ts'],age_basis='subtask_status_entry',age_seconds=max(0,(now-(date(changes[0]['ts']) or now)).total_seconds()))
+                row.update(execution_actor=ACTORS.get(changes[0]['actor']),stage_entered_at=changes[0]['ts'],age_basis='subtask_status_entry',age_seconds=max(0,(now-(date(changes[0]['ts']) or now)).total_seconds()))
             if sub.get('status')=='doing': rows.append(row)
             else: pending['blocked' if blocked else 'queued'].append(row)
             if sub.get('status')=='blocked': add_attention(row,'explicitly blocked')
@@ -157,6 +157,7 @@ def snapshot(orch,clock=None):
     # The actual dispatch interface is authoritative for first candidate and handoff precedence.
     for key,agent in [('gemma','scout'),('codex','planner'),('claude','architect'),('claude-high','architect-high')]:
         queues[key]=orch.queue(agent)
+    confirmed_active=set()
     for lane in lanes:
         provider={'codex':'openai','claude':'anthropic'}.get(lane['key'])
         if provider:
@@ -179,7 +180,20 @@ def snapshot(orch,clock=None):
             fresh=observation['status']=='ok'
             start=job.get('started_at') if fresh else None
             if start:
-                candidate=None  # cron cannot prove which queued task is executing
+                # A unique explicit execution start inside this cron run can identify work;
+                # old doing flags and adjacent/recent events cannot.
+                active=[row for row in rows if row.get('subtask_id') is not None and row['status']=='doing'
+                        and row.get('execution_actor')==lane['key'] and row['owner']==lane['key']
+                        and row['age_basis']=='subtask_status_entry' and date(row['stage_entered_at'])>=date(start)]
+                running_jobs=[j for j in lane['jobs'] if j.get('started_at')]
+                candidate=None
+                if len(active)==1 and len(running_jobs)==1:
+                    row=active[0]
+                    lane['activity'].update(task_ref='#'+str(row['initiative_id'])+' sub '+str(row['subtask_id'])+': '+row['title'],
+                                            href=row['href'],basis='unique execution start correlated with fresh cron run',started_at=row['stage_entered_at'])
+                    confirmed_active.add(row['initiative_id'])
+                    candidate={'initiative':row['initiative_id'],'subtask':{'title':row['title'],'status':'doing'}}
+                    kind='build'; start=row['stage_entered_at']
             if not start and fresh and job['enabled']: start=job.get('next_run_at')
             if start and date(start)<now and not job.get('started_at'): start=None
             if lane['quota']['state']=='exhausted': start=None
@@ -203,7 +217,7 @@ def snapshot(orch,clock=None):
         p['recent_activity']=bool(recent); p['version']=orch.project_version(p)
     return {'schema_version':1,'generated_at':u.stamp(now),'telemetry_generation':str(observation['generation'])+':'+str(metric_generation),
             'history_truncated':len(events)>=10000,'lanes':lanes,'next_update':min(estimates,key=lambda e:e['completion_at']) if estimates else {'state':'unknown','next_check_at':min(next_checks,default=None)},
-            'in_flight':rows,'pending':pending,'attention':list({a['key']:a for a in attention}.values()),'suggestions':suggestions,'projects':projects,'spotlight':spot,
+            'confirmed_active':sorted(confirmed_active),'in_flight':rows,'pending':pending,'attention':list({a['key']:a for a in attention}.values()),'suggestions':suggestions,'projects':projects,'spotlight':spot,
             'totals':{'initiatives':len(inits),'in_flight_rows':len(rows),'pending_rows':sum(map(len,pending.values()))}}
 
 

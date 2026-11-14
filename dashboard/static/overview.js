@@ -178,7 +178,11 @@
     }).join('')+'</ul><p class="hint">Scheduled runs are each agent\'s automatic timer. Claude\'s is off on purpose: I run it on demand from chat. Toggle timers on the <a href="#/tab/work">Work tab</a>.</p>';
   }
   function upcoming(data) {
-    const events=(data.forecast?.timeline||[]).slice(1,5);
+    // Each lane's next run always shows (so Codex/Claude aren't crowded out by Gemma's frequent refreshes), then fill by time.
+    const rest=(data.forecast?.timeline||[]).slice(1);
+    const pick=new Set(rest.filter(e=>rest.find(x=>x.actor===e.actor)===e));
+    for(const e of rest){if(pick.size>=6)break;pick.add(e);}
+    const events=rest.filter(e=>pick.has(e));
     return events.length?'<h3>Then</h3><ol class="upcoming">'+events.map(e=>'<li><time>'+esc(until(e.start_at))+'</time><a href="'+esc(e.href)+'">'+esc(describe(e))+'</a></li>').join('')+'</ol>':'';
   }
   function needs(data) {

@@ -34,7 +34,8 @@ _Last updated: 2026-11-13 21:40 PT_
 - **Strain fixes:** all of tonight's scripts now run DETACHED (they survive the chat): `seed_finish`, `solve_tonight`,
   and `strain_build`, which starts Codex on `briefs/strain-fixes-codex.md` in `worktrees/000-orchestrator/strain-fixes`
   after the issue batches, if Codex has 35% or more left. It covers: no Godot smoke false greens, PLAYTEST.md format
-  enforced at review pass, issue work shown in the forecast, stale-dossier refresh, and Claude quota age. Next chat:
+  enforced at review pass, issue work shown in the forecast, stale-dossier refresh, Claude quota age, and (item 6)
+  planned Codex/Claude runs visible on the dashboard before they start. Next chat:
   review that branch against the brief, run the tests, and show the producer before merging. Claude's scheduled
   Sonnet runs are ON (01:00, 09:00, 17:00) as of 21:35.
 - **#11 Gemma stabs** is in hld_draft (producer: "included in the next wave"). `logs/hld11.sh` (detached) runs the

@@ -4,7 +4,7 @@ Every chat with the conductor starts fresh. This file holds what a new chat need
 background runs, environment quirks, unfinished conversations. Keep it under ~40 lines. Delete threads when they close.
 Card state lives in `orch.py inbox --md`; do not copy it here.
 
-_Last updated: 2026-11-13 20:45 PT_
+_Last updated: 2026-11-13 21:00 PT_
 
 **Chat start:** read this file and `inbox --md`, nothing more, until the producer asks for something.
 
@@ -14,15 +14,13 @@ _Last updated: 2026-11-13 20:45 PT_
 - #5 and #8 (dashboard MVP) shipped at 19:58 (main d5f4ffb, pushed). Playbooks are
   installed (Gemma's never-idle fallback is live), the spotlight is ended, and the dashboard on :8420 runs the new build.
 
-- `feat/dashboard-priority-view` (a77219c, worktree `worktrees/000-orchestrator/dashboard-priority-view`, no card):
-  Attention rows lead with the project; one shared ranking (spotlight > focus > claim > high project > high card) puts
-  prioritized work first on every tab, with a "Prioritized" strip. Awaits the producer's playtest (preview entry
-  `dashboard-priority-view` on :8431), then merge to main. Touches overview.js/app.js like #6, so expect a rebase there.
+- Dashboard priority view shipped 21:00 (main 4f10483, pushed; :8420 restarted). It touched overview.js/app.js,
+  so #6's LLD/build should rebase on it.
 
 ## Roadmap (producer, 2026-11-13)
 1. ~~#8 dashboard MVP~~ (shipped). 2. Harden the orchestrator to use every resource fully, on every project.
 3. AI-analyzed per-project metadata, kept current (spark #10). End state: the producer steers from a forward-looking view.
-- **Next chat: project seeding.** Codex writes deep dossiers (reads the repo, runs it headless); Claude Sonnet writes player
+- **Next chat: project seeding** (producer confirmed 21:00: Claude + Codex on project metadata and standardizing each project). Codex writes deep dossiers (reads the repo, runs it headless); Claude Sonnet writes player
   experience, scores, bottleneck and next milestone from the dossier; Gemma keeps facts fresh. Pilot 002-wasteball,
   003-big-city and 015-mmc6-nes first to calibrate prompts and cost. Coverage now: 11/20 dossiers, 5/20 player experience.
 

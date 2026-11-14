@@ -28,6 +28,8 @@ _Last updated: 2026-11-13 21:00 PT_
   `ORCH dispatch start|end --lane <lane> --run <id> --label "..."` (seed_codex.sh does). 009's run predates the
   launcher change: run `ORCH dispatch end --lane codex --run seed-009-vr-baseball` when it ends.
 
+- Codex 5h at ~10% left at 20:30 (resets 23:44 PT): no Codex dispatches until then.
+
 ## Roadmap (producer, 2026-11-13)
 1. ~~#8 dashboard MVP~~ (shipped). 2. Harden the orchestrator to use every resource fully, on every project.
 3. AI-analyzed per-project metadata, kept current (spark #10). End state: the producer steers from a forward-looking view.

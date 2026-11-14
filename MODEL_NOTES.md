@@ -70,6 +70,9 @@ Update this after any dispatch that teaches something.
 - ~3 min per repo, 4 in parallel without trouble. Quality high: read code, ran headless, recorded measured numbers
   (003: generation timings and counts), and caught a false-green smoke (exit 0 despite parse errors in a fresh
   checkout without editor import). Left every producer checkout untouched.
+- **Cost:** ~3.4% of the Codex 5h window per repo (19 repos took it from 61% to ~10% left in ~20 min). The conductor
+  didn't re-check quota between waves; the producer caught it. Rule: check Codex 5h before each wave, and size waves
+  so the window keeps >=20% for scheduled runs.
 - Prompting that worked: exact heading skeleton with example strings, labeled fallbacks instead of "unknown",
   lane-tagged milestone bullets.
 

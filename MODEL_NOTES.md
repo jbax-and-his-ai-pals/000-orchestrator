@@ -76,3 +76,11 @@ Update this after any dispatch that teaches something.
 - Prompting that worked: exact heading skeleton with example strings, labeled fallbacks instead of "unknown",
   lane-tagged milestone bullets.
 
+### 2026-11-13: seeding judgment pass, Claude Sonnet 5.5 (brief: briefs/seed-claude.md)
+- Pilot on 002-wasteball, about 3 min. It checked the dossier against the code and found the real blocker: the human shot
+  is a hardcoded 90% in player.gd, and a pass-target bug. It rewrote the description, player experience and milestone
+  around that. A strong result.
+- Minor deviation: it put "judged by" mid-line on the author line instead of appending it. Harmless, because
+  frontier_author reads the first actor.
+- Cost: about 3% of the Claude 5h window per repo (73 -> 76%, including some chat). Budget about 2.5-3% per repo.
+

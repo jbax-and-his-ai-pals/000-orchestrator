@@ -11,16 +11,14 @@ _Last updated: 2026-11-13 20:45 PT_
 ## Running now
 - #6 sent back to lld_draft at 19:59 to rebase on #8 (scope in its REVISIONS.md); planner-codex's hourly cron picks it
   up. It must rebase on main (priority view 4f10483, dispatch visibility 40be8be touched overview.js/app.js).
-- **Seeding:** all 19 game repos have Codex deep dossiers (done 20:35; all checkouts verified untouched). Next, in
-  order: (1) Claude judgment pass per repo with `briefs/seed-claude.md` once Claude 5h has room (reset 22:30 PT),
-  wrapped in `ORCH dispatch`; (2) turn the [gemma]-tagged "Next milestone" bullets into Gemma subtasks;
-  (3) 000-orchestrator still has a Gemma dossier. Rerun a repo with `briefs/seed_codex.sh <wave> <repos>`.
-- **Pulse descriptions + bottleneck issues:** built on `feat/bottleneck-issues` (worktree
-  `worktrees/000-orchestrator/bottleneck-issues`, 157 tests). Waiting for the producer to look at the playtest copy
-  on :8422 and say merge. After merge: `sync_playbooks.py --install`, restart :8420, `ORCH backfill-issues`, dismiss
-  the 000-orchestrator issue (it asks to remove producer gates), stop :8422. Autosolve stays off until the producer
-  says on (suggested: after the Claude judgment pass, which rewrites every blocker). Known gap: issue work isn't in
-  the forecast or Agents Now.
+- **Seeding:** Codex deep dossiers done for all 19 game repos; Claude judgment pass done for 002 (pilot, excellent).
+  `logs/seed_finish.sh` is running in the background (log `logs/seed_finish.log`, per repo `logs/judge-claude-<repo>.log`).
+  It waits for 22:33 PT, runs the Claude pass on the other 18 in waves of 4, waits for 23:47 PT, then runs Codex and
+  Claude on 000-orchestrator. If the chat that started it closed, check the logs; the script dies with its session.
+  Then: spot-check the judged dossiers, check `ORCH issues`, and ask the producer about `issues-autosolve on`.
+  Gemma backlog (11 docs tasks, 6 ready) is in `designs/0011-*/GEMMA_BACKLOG.md` for spark #11.
+- **Bottleneck issues** merged 21:05 (aaa6cb4): 19 open on the Triage Board; the orchestrator's is dismissed. Autosolve
+  is OFF until the producer says on (suggested after the judgment pass). Known gap: issue work isn't in forecast/Agents Now.
 - Codex 5h at ~10% left at 20:35 (resets 23:44 PT): no Codex dispatches until then.
 
 ## Roadmap (producer, 2026-11-13)

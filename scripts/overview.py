@@ -6,6 +6,7 @@ import statistics
 import threading
 import time
 from urllib.parse import quote
+import forecast
 import lane_status
 import steering
 import utilization as u
@@ -46,14 +47,7 @@ def durations(events,now):
     return samples
 
 def typical(samples,actor,work_type):
-    exact=[s['seconds'] for s in samples if s['actor']==actor and s['work_type']==work_type]
-    basis='actor_work_type'
-    if len(exact)<3:
-        exact=[s['seconds'] for s in samples if s['actor']==actor]; basis='actor_fallback_low_confidence'
-    if len(exact)<3: return None
-    exact.sort()
-    return {'seconds':statistics.median(exact),'sample_count':len(exact),'basis':basis,
-            'p25':exact[(len(exact)-1)//4],'p75':exact[3*(len(exact)-1)//4]}
+    return forecast.duration(samples,actor,work_type)
 
 def estimate(samples,actor,kind,start,now):
     stats=typical(samples,actor,kind)
@@ -64,7 +58,11 @@ def estimate(samples,actor,kind,start,now):
 
 def pace(metric,window,now):
     result={**metric,'pace':'unavailable','target_used':None,'delta_pp':None,'estimated':True}
-    if metric['status']!='ok' or metric.get('value') is None: return result
+    if result.get('reason')=='observation_stale' and (metric.get('age_seconds') or 0)<=3600:
+        result.update(status='ok',reason=None)
+    if (metric.get('age_seconds') or 0)>3600:
+        result.update(status='stale',reason='observation_stale')
+    if result['status']!='ok' or metric.get('value') is None: return result
     reset=date(metric.get('meta',{}).get('resets_at'))
     if not reset or reset<=now: return result
     duration=dt.timedelta(hours=5) if window=='5h' else dt.timedelta(days=7)
@@ -72,12 +70,46 @@ def pace(metric,window,now):
     if not start<=now<reset: return result
     target=100*(now-start).total_seconds()/duration.total_seconds()
     actual=100-metric['value']; delta=actual-target
-    result.update(pace='on pace' if abs(delta)<=5 else 'ahead (faster spending)' if delta>0 else 'behind',
+    result.update(pace='on pace' if abs(delta)<=5 else 'over pace' if delta>0 else 'under pace',
                   actual_used=actual,target_used=target,delta_pp=delta,
                   baseline='estimated nominal window; rolling windows approximate')
     return result
 
-def snapshot(orch,clock=None):
+def stage_owner(stage, gates):
+    if stage in gates and stage!='spark': return 'producer'
+    return 'claude' if stage in ('spark','hld_draft') else 'codex'
+
+def by_id_complexity(inits,iid):
+    return next((i.get('complexity') for i in inits if i['id']==iid),None)
+
+def empty_totals():
+    return dict(open_initiatives=0,in_flight=0,waiting_on_producer=0,blocked=0,queued_subtasks=0,subtasks_done=0,subtasks_total=0,stages={})
+
+def rollups(inits,projects,rows,gates,model):
+    """Unique card/task identities: duplicate parent rows never inflate counts."""
+    all_projects=[]; totals=empty_totals()
+    by_project={}
+    for i in inits: by_project.setdefault(i['project_name'],[]).append(i)
+    blocked_ids={r['initiative_id'] for r in rows if r.get('eligibility') not in (None,'eligible','dependency wait','initiative not building')}
+    for project in projects:
+        name=project['repo_name']; cards=by_project.get(name,[]); result=empty_totals()
+        for card in cards:
+            result['open_initiatives']+=1
+            result['stages'][card['stage']]=result['stages'].get(card['stage'],0)+1
+            result['in_flight']+=card['stage'] in ('building','hld_draft','lld_draft')
+            result['waiting_on_producer']+=card['stage'] in gates
+            result['blocked']+=card['id'] in blocked_ids
+            subs=json.loads(card['execution_plan_json'] or '{}').get('subtasks',[])
+            result['subtasks_done']+=sum(s.get('status')=='done' for s in subs)
+            result['subtasks_total']+=len(subs)
+            result['queued_subtasks']+=sum(s.get('status')=='todo' for s in subs)
+        for key,value in result.items():
+            if key!='stages': totals[key]+=value
+        for stage,count in result['stages'].items(): totals['stages'][stage]=totals['stages'].get(stage,0)+count
+        all_projects.append({**result,'project':name,'estimate':model['projects'].get(name,{'state':'blocked','reason':model.get('reason','no open initiatives')}),'priority':project.get('priority')})
+    return {'totals':totals,'projects':all_projects}
+
+def snapshot(orch,clock=None,bump=None):
     now=u.utc(clock() if clock else dt.datetime.now(u.UTC))
     with orch.db() as con:
         projects=orch.rows(con,'SELECT * FROM projects ORDER BY repo_name')
@@ -85,6 +117,13 @@ def snapshot(orch,clock=None):
         events=orch.rows(con,'SELECT * FROM events ORDER BY id DESC LIMIT 10001')
         observation=lane_status.read(con,now)
         quotas={provider:{w:pace(u.current_metric(con,provider,'remaining_pct.'+w,now),w,now) for w in u.WINDOWS} for provider in ('openai','anthropic')}
+        for windows in quotas.values():
+            for metric in windows.values():
+                if metric.get('status')=='stale' and metric.get('meta',{}).get('manual'):
+                    metric['hint']='record from a Claude chat (quota-snapshot)'
+        for metric in quotas['anthropic'].values():
+            if metric['status'] in ('stale','missing','error'):
+                metric['hint']='record from a Claude chat (quota-snapshot)'
         local=u.current_metric(con,'ollama','loaded_count',now)
         metric_generation=con.execute('SELECT COALESCE(MAX(rowid),0) FROM metrics').fetchone()[0]
     events=events[:10000]
@@ -111,10 +150,11 @@ def snapshot(orch,clock=None):
         entered=stage_events[0]['ts'] if stage_events else None
         claim=i.get('claimed_by') if (date(i.get('claim_expires_at')) or now)<=now else i.get('claimed_by')
         if not date(i.get('claim_expires_at')) or date(i['claim_expires_at'])<=now: claim=None
-        owner=claim or {'hld_draft':'claude','lld_draft':'codex'}.get(i['stage'])
+        owner=claim or stage_owner(i['stage'],orch.AWAITING_PRODUCER)
+        i['stage_entered_at']=entered
         reason=steering.eligibility(i,project,spot,u.stamp(now),bool(due_by_actor.get(owner)),orch.finishing(spot,i['id']))
         base={'key':'i:'+str(i['id']),'initiative_id':i['id'],'subtask_id':None,'project':i['project_name'],
-              'title':i['title'],'stage':i['stage'],'status':i['stage'],'owner':owner,'owner_basis':'claim' if claim else 'stage_route' if owner else 'unknown',
+              'title':i['title'],'stage':i['stage'],'status':i['stage'],'owner':owner,'owner_basis':'claim' if claim else 'stage_route',
               'created_at':i['created_at'],'stage_entered_at':entered,'age_basis':'stage_entry' if entered else 'creation_fallback',
               'age_seconds':max(0,(now-(date(entered or i['created_at']) or now)).total_seconds()),
               'last_activity_at':history[0]['ts'] if history else None,'eligibility':reason or 'eligible',
@@ -207,6 +247,28 @@ def snapshot(orch,clock=None):
         lane['estimate']=min(valid,key=lambda x:x['completion_at']) if valid else {'state':'unknown','reason':'completion unknown'}
         if lane['reason']: add_attention({'key':lane['key'],'href':'#/','title':lane['label']},'scheduler '+lane['reason'])
         if lane['quota']['state']=='exhausted': add_attention({'key':lane['key'],'title':lane['label']},'quota exhausted')
+    model=forecast.cached(inits,projects,lanes,samples,now,orch.queue_from_snapshot,spot,due_by_actor,
+        [i['id'] for i in inits if orch.finishing(spot,i['id'])])
+    for lane in lanes:
+        upcoming=[e for e in model['timeline'] if e['actor']==lane['key']]
+        if upcoming: lane['estimate']=min(upcoming,key=lambda e:e['completion_at'])
+        elif lane['scheduler']['state']=='paused': lane['estimate']={'state':'blocked','reason':"won't run until resumed"}
+        for job in lane['jobs']:
+            choices=[e for e in upcoming if e['work_type']!='hld' or (by_id_complexity(inits,e['initiative_id'])=='high')==job['declaration'].endswith('-opus')]
+            if choices: job['estimate']=choices[0]
+            elif not job['enabled']: job['estimate']={'state':'blocked','reason':"won't run until resumed"}
+    all_rows=rows+[r for group in pending.values() for r in group]
+    progress={i['id']:json.loads(i['execution_plan_json'] or '{}').get('subtasks',[]) for i in inits}
+    for row in all_rows:
+        row['estimate']=model['items'].get(row['key'],model['initiatives'].get(str(row['initiative_id']),{'state':'blocked','reason':model.get('reason','outside observed schedule')}))
+        subs=progress[row['initiative_id']]
+        row['progress']={'done':sum(s.get('status')=='done' for s in subs),'total':len(subs)}
+    rollup=rollups(inits,projects,all_rows,orch.AWAITING_PRODUCER,model)
+    comparison=None
+    if bump:
+        changed=forecast.cached(inits,projects,lanes,samples,now,orch.queue_from_snapshot,spot,due_by_actor,
+            [i['id'] for i in inits if orch.finishing(spot,i['id'])],bump)
+        comparison=forecast.compare(model,changed,bump[0],bump[1])
     claims=[{'initiative_id':i['id'],'title':i['title'],'owner':i['claimed_by'],'href':'#/initiative/'+str(i['id'])} for i in inits if i.get('claimed_by') and date(i.get('claim_expires_at')) and date(i['claim_expires_at'])>now]
     focus=[{'project':p['repo_name'],'owner':p['focus_by'],'href':'#/project/'+quote(p['repo_name'],safe='')} for p in projects if p.get('focus_by') and date(p.get('focus_until')) and date(p['focus_until'])>now]
     lanes.append({'key':'chat','label':'Chat','jobs':[],'activity':{'state':'claimed/in chat' if claims or focus else 'no claims','basis':'ownership, not process'},'claims':claims,'focus':focus,'scheduler':{'state':'none','next_run_at':None},'quota':{'state':'unknown'},'estimate':{'state':'unknown','reason':'chat has no schedule'}})
@@ -218,6 +280,7 @@ def snapshot(orch,clock=None):
     return {'schema_version':1,'generated_at':u.stamp(now),'telemetry_generation':str(observation['generation'])+':'+str(metric_generation),
             'history_truncated':len(events)>=10000,'lanes':lanes,'next_update':min(estimates,key=lambda e:e['completion_at']) if estimates else {'state':'unknown','next_check_at':min(next_checks,default=None)},
             'confirmed_active':sorted(confirmed_active),'in_flight':rows,'pending':pending,'attention':list({a['key']:a for a in attention}.values()),'suggestions':suggestions,'projects':projects,'spotlight':spot,
+            'forecast':model,'rollups':rollup,'what_if':comparison,
             'totals':{'initiatives':len(inits),'in_flight_rows':len(rows),'pending_rows':sum(map(len,pending.values()))}}
 
 
@@ -234,6 +297,10 @@ def paged(report,project='',collection=None,offset=0,limit=200):
         pages[key]={'total':len(selected),'offset':start,'next_cursor':start+len(rows) if start+len(rows)<len(selected) else None}
         if key.startswith('pending.'): report['pending'][key.split('.')[1]]=rows
         else: report[key]=rows
+    if project:
+        report['rollups']['projects']=[p for p in report['rollups']['projects'] if p['project']==project]
+        report['rollups']['totals']=report['rollups']['projects'][0] if report['rollups']['projects'] else empty_totals()
+        report['forecast']['timeline']=[e for e in report['forecast']['timeline'] if e['project']==project]
     report['pages']=pages
     report['project_filter']=project
     return report

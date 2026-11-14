@@ -18,7 +18,7 @@ class EstimateTests(unittest.TestCase):
         self.assertEqual(o.typical(samples,'codex','build')['seconds'],600)
         result=o.estimate(samples,'codex','build',u.stamp(self.now-dt.timedelta(minutes=11)),self.now)
         self.assertEqual(result['state'],'over_typical'); self.assertIsNone(result['completion_at'])
-        self.assertEqual(o.estimate(samples[:2],'codex','build',u.stamp(self.now),self.now)['state'],'unknown')
+        self.assertEqual(o.estimate(samples[:2],'codex','build',u.stamp(self.now),self.now)['basis'],'default_prior')
     def test_gates_and_ambiguity_not_runtime(self):
         events=[{'id':n,'ts':u.stamp(self.now-dt.timedelta(minutes=10-n)),'actor':'planner-codex','initiative_id':1,'kind':'subtask','message':'1 -> '+status+': '} for n,status in enumerate(['doing','doing','done'])]
         self.assertEqual(o.durations(events,self.now),[])

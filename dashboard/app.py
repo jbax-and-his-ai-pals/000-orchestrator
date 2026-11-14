@@ -302,6 +302,14 @@ def overview_api(project:str="",collection:str|None=None,offset:int=0,limit:int=
     except utilization.sqlite3.Error:
         return JSONResponse({'error':'db_busy'},status_code=503)
 
+@app.get('/api/forecast/what-if')
+def what_if_api(kind:Literal['initiative','project'],target:str):
+    if len(target)>160: raise HTTPException(422,'invalid target')
+    result=overview.snapshot(orch,bump=(kind,target))
+    collection=result['forecast']['initiatives' if kind=='initiative' else 'projects']
+    if target not in collection: raise HTTPException(404,'forecast target not found')
+    return result['what_if']
+
 class PriorityBody(BaseModel):
     priority: Literal['high','medium','low']
     expected_version: str

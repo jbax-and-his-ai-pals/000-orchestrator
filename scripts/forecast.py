@@ -177,7 +177,7 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
             key='s:'+str(iid)+':'+str(sub['id'])
             if key not in items:
                 reason=hard or ('waiting on you' if card['stage'] in GATES else None) or ('waiting for producer/editor work' if sub['assignee']=='ide_handoff' else None) or lane_reasons.get(sub['assignee']) or ('explicitly blocked' if sub.get('status')=='blocked' else 'outside next 24h or waiting for prerequisites / observed schedule')
-                items[key]={'state':'blocked','reason':reason}
+                items[key]={**duration(samples,sub['assignee'],'build'),'state':'blocked','reason':reason}
             if items[key].get('state')=='blocked': pending.append(items[key]['reason'])
         if hard: eta={'state':'blocked','reason':hard}
         elif card['stage'] in GATES: eta={'state':'waiting','reason':'waiting on you','waiting_seconds':max(0,(now-(date(card.get('stage_entered_at') or card.get('created_at')) or now)).total_seconds())}

@@ -15,6 +15,12 @@ _Last updated: 2026-11-13 20:45 PT_
   order: (1) Claude judgment pass per repo with `briefs/seed-claude.md` once Claude 5h has room (reset 22:30 PT),
   wrapped in `ORCH dispatch`; (2) turn the [gemma]-tagged "Next milestone" bullets into Gemma subtasks;
   (3) 000-orchestrator still has a Gemma dossier. Rerun a repo with `briefs/seed_codex.sh <wave> <repos>`.
+- **Pulse descriptions + bottleneck issues:** built on `feat/bottleneck-issues` (worktree
+  `worktrees/000-orchestrator/bottleneck-issues`, 157 tests). Waiting for the producer to look at the playtest copy
+  on :8422 and say merge. After merge: `sync_playbooks.py --install`, restart :8420, `ORCH backfill-issues`, dismiss
+  the 000-orchestrator issue (it asks to remove producer gates), stop :8422. Autosolve stays off until the producer
+  says on (suggested: after the Claude judgment pass, which rewrites every blocker). Known gap: issue work isn't in
+  the forecast or Agents Now.
 - Codex 5h at ~10% left at 20:35 (resets 23:44 PT): no Codex dispatches until then.
 
 ## Roadmap (producer, 2026-11-13)

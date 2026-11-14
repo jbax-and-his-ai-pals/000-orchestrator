@@ -67,6 +67,12 @@ async function refresh(force = false) {
     const oldOverview=O, filterValue=$("#overview-filter").value;
     O = await api("/api/overview?project="+encodeURIComponent(filterValue));
     O.initiative_index = Object.fromEntries(S.initiatives.map(i => [i.id, {pitch: i.pitch_summary, revision: i.revision_note, category: i.category, complexity: i.complexity, branch: i.branch_name}]));
+    O.priority_context = {
+      spotlight: S.spotlight?.project || null,
+      projects: Object.fromEntries(S.projects.map(p => [p.repo_name, {priority: p.priority, focus: !!p.focus}])),
+      claims: S.initiatives.filter(i => i.claim && !["done", "rejected"].includes(i.stage)).map(i => i.id),
+      initiatives: Object.fromEntries(S.initiatives.map(i => [i.id, {priority: i.priority, title: i.title, project: i.project_name, stage: i.stage}])),
+    };
     window.__overview = O;
     if(oldOverview?.project_filter===filterValue) {
       for(const collection of Object.keys(O.pages)) {
@@ -133,6 +139,7 @@ function pulseStats(name) {
   return `<div class="pstats">${stat(big, label, "eta " + cls)}${stat(open, "open initiatives")}${stat((r.subtasks_done ?? 0) + "/" + (r.subtasks_total ?? 0), "subtasks done")}${stat(r.waiting_on_producer ?? 0, "waiting on you", r.waiting_on_producer ? "warn" : "")}</div>`;
 }
 
+const projRank = name => { const s = Overview.rank(O?.priority_context, name).score; return s <= 1 ? s : 2; };
 function renderPulse() {
   const q = $("#filter").value.toLowerCase();
   const showSkip = $("#show-skip").checked;
@@ -141,7 +148,7 @@ function renderPulse() {
   const projects = S.projects
     .filter(p => showSkip || p.priority !== "skip")
     .filter(p => !q || `${p.repo_name} ${p.stack}`.toLowerCase().includes(q))
-    .sort((a, b) => order[a.priority] - order[b.priority] || a.repo_name.localeCompare(b.repo_name));
+    .sort((a, b) => projRank(a.repo_name) - projRank(b.repo_name) || order[a.priority] - order[b.priority] || a.repo_name.localeCompare(b.repo_name));
   $("#pulse").innerHTML = projects.map(p => {
     const act = p.latest_activity;
     const opts = S.enums.priorities.map(o => `<option ${o === p.priority ? "selected" : ""}>${o}</option>`).join("");
@@ -158,6 +165,7 @@ function renderPulse() {
         ${!p.is_git ? `<span class="badge local">local only · no git</span>` : ""}
         ${p.has_dossier ? `<span class="badge">dossier</span>` : `<span class="badge">no dossier yet</span>`}
         ${p.has_audit ? `<span class="badge">audit notes</span>` : ""}
+        ${S.spotlight?.project === p.repo_name ? `<span class="badge focus">🔦 spotlight</span>` : ""}
         ${p.focus ? `<span class="badge focus">🎯 focus: ${esc(p.focus)} · ${esc(untilText(p.focus_until))}</span>` : ""}
       </div>
       ${m.has("player_experience") ? (p.player_experience
@@ -184,18 +192,20 @@ function cardHtml(i) {
   return `<a href="#/initiative/${i.id}" class="card ${awaiting ? "awaiting" : O?.confirmed_active?.includes(i.id) ? "working" : ""}" data-init="${i.id}" id="card-${i.id}">
     <div class="card-sub"><span class="stage ${awaiting ? "awaiting" : ""}">${esc(Overview.plain(i.stage))}</span>
       <span class="cat cat-${i.category}">${CATEGORY_LABEL[i.category]}</span>${i.complexity === "high" ? `<span class="cat" style="color:var(--violet)">· high</span>` : ""}</div>
+    ${Overview.prioTag(O?.priority_context, i.project_name, i.id, i.priority)}
     <div class="card-title">${esc(i.title)}${O?.confirmed_active?.includes(i.id) ? ' <span class="badge">confirmed working</span>' : ""}</div>
     <div class="estimate">${Overview.eta(O?.forecast?.initiatives?.[String(i.id)])}</div>
-    <div class="card-sub">${esc(i.project_name === "NEW_CONCEPT" ? "✦ new concept" : short(i.project_name))} · ${ago(i.updated_at)}${prog}</div>
+    <div class="card-sub"><b class="card-proj">${esc(i.project_name === "NEW_CONCEPT" ? "✦ new concept" : (num(i.project_name) ? num(i.project_name) + " " : "") + short(i.project_name))}</b> · ${ago(i.updated_at)}${prog}</div>
     ${i.revision_note ? `<div class="card-sub" style="color:var(--warn)">↺ ${esc(i.revision_note.slice(0, 90))}</div>` : ""}
     ${i.claim ? `<div class="card-sub claim">💬 in chat: ${esc(i.claim)}</div>` : ""}
   </a>`;
 }
 
+const cardRank = i => Overview.rank(O?.priority_context, i.project_name, i.id, i.priority).score;
 function renderBoard() {
   $("#board").innerHTML = COLUMNS.map(c => {
     const items = S.initiatives.filter(i => c.stages.includes(i.stage))
-      .sort((a, b) => (AWAITING.has(b.stage) - AWAITING.has(a.stage)) || b.updated_at.localeCompare(a.updated_at));
+      .sort((a, b) => cardRank(a) - cardRank(b) || (AWAITING.has(b.stage) - AWAITING.has(a.stage)) || b.updated_at.localeCompare(a.updated_at));
     const waiting = items.filter(i => AWAITING.has(i.stage)).length;
     return `<div class="col"><div class="col-head"><span>${c.label}</span><span><b>${waiting}</b> awaiting · ${items.length}</span></div>
       <div class="col-body">${items.map(cardHtml).join("") || `<div class="empty">Nothing here.</div>`}</div></div>`;
@@ -218,11 +228,11 @@ function feedText(msg) {
 }
 function renderActivity() {
   if (O) {
-    const active = (O.in_flight || []);
-    $("#act-active").innerHTML = active.length ? `<ul class="act-list">${active.map(r => `<li><a href="${esc(r.href)}">#${esc(r.initiative_id)}${r.subtask_id ? " / " + esc(r.subtask_id) : ""} ${esc(r.title)}</a><span class="actor-chip ${ACTOR_CLS(r.owner || "")}">${esc(r.owner || "unknown")}</span><span class="act-detail">${esc(Overview.detail(r))}</span><span class="act-eta">${Overview.eta(r.estimate)}</span></li>`).join("")}</ul>`
+    const ctx = O.priority_context, active = Overview.prioritize(O.in_flight || [], ctx);
+    $("#act-active").innerHTML = active.length ? `<ul class="act-list">${active.map(r => `<li><a href="${esc(r.href)}">#${esc(r.initiative_id)}${r.subtask_id ? " / " + esc(r.subtask_id) : ""} ${esc(r.title)}</a>${Overview.projTag(r.project)}${Overview.prioTag(ctx, r.project, r.initiative_id, r.priority)}<span class="actor-chip ${ACTOR_CLS(r.owner || "")}">${esc(r.owner || "unknown")}</span><span class="act-detail">${esc(Overview.detail(r))}</span><span class="act-eta">${Overview.eta(r.estimate)}</span></li>`).join("")}</ul>`
       : `<p class="hint">Nothing is running right now.</p>`;
-    const next = (O.forecast?.timeline || []).slice(0, 6);
-    $("#act-upcoming").innerHTML = next.length ? `<ul class="act-list">${next.map(e => `<li><a href="${esc(e.href)}">${esc(Overview.describe(e))}</a><span class="act-eta">${esc(Overview.until(e.start_at))} · takes ${esc(e.basis_label || "unknown")}</span></li>`).join("")}</ul>`
+    const next = Overview.prioritize((O.forecast?.timeline || []).slice(0, 6), ctx, e => [e.project, e.initiative_id]);
+    $("#act-upcoming").innerHTML = next.length ? `<ul class="act-list">${next.map(e => `<li><a href="${esc(e.href)}">${esc(Overview.describe(e))}</a>${Overview.prioTag(ctx, e.project, e.initiative_id)}<span class="act-eta">${esc(Overview.until(e.start_at))} · takes ${esc(e.basis_label || "unknown")}</span></li>`).join("")}</ul>`
       : `<p class="hint">No agent run is forecast in the next 24 hours.</p>`;
   }
   let day = "";

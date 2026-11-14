@@ -9,6 +9,8 @@ ORCH = `C:/jbax-and-his-ai-pals/_orchestrator/.venv/Scripts/python.exe C:/jbax-a
 1. Read `_orchestrator/state/TASTE_PROFILE.md`, then `_orchestrator/dossiers/<repo>/DOSSIER.md`. Spot-check the repo
    only where a claim looks wrong (budget: 5 files).
 2. Copy DOSSIER.md to `DOSSIER.deep.md` in the same folder and edit ONLY these sections, keeping every heading:
+   - `## Snapshot` → **What it is:** one plain sentence a stranger understands. It is the project's description on the
+     dashboard, shown above the player experience, so it should say what the thing *is*, not how it plays.
    - `## Player experience`: 3-5 vivid, honest sentences in second person. Concrete moments, not genre labels.
      "Intended (not yet playable): ..." if the loop isn't wired.
    - `## Bottlenecks` → **Biggest blocker**: the one thing that most holds the game back from being fun or shippable.

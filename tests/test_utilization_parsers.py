@@ -48,10 +48,12 @@ class ParserTests(unittest.TestCase):
         with patch.object(u.shutil,'which',return_value=None), patch.object(u.Path,'is_file',return_value=False):
             with self.assertRaises(u.CollectorError) as e: u.collect_gpu()
             self.assertEqual(e.exception.reason,'missing_tool')
-        with patch.object(u.shutil,'which',return_value='C:/tools/nvidia-smi.exe'), patch.object(u.subprocess,'run',return_value=Mock(returncode=0,stdout='0,0,10,20,30')) as run:
+        import io
+        process=Mock(returncode=0,stdout=io.BytesIO(b'0,0,10,20,30'),stderr=io.BytesIO(b''))
+        with patch.object(u.shutil,'which',return_value='C:/tools/nvidia-smi.exe'), patch.object(u.subprocess,'Popen',return_value=process) as launch:
             self.assertEqual(u.collect_gpu()[0]['value'],0)
-            self.assertEqual(run.call_args.kwargs['timeout'],5)
-            self.assertFalse(run.call_args.kwargs['shell'])
+            self.assertEqual(process.wait.call_args.kwargs['timeout'],5)
+            self.assertFalse(launch.call_args.kwargs['shell'])
         response=Mock()
         response.__enter__=Mock(return_value=response)
         response.__exit__=Mock(return_value=False)

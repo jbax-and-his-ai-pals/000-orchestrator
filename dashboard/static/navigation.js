@@ -1,6 +1,6 @@
 (function(root) {
   'use strict';
-  const tabs=new Set(['overview','pulse','work','triage','activity','utilization','ideas','taste']);
+  const tabs=new Set(['overview','pulse','attention','work','triage','activity','utilization','ideas','taste']);
   const positive=s=>/^[1-9][0-9]*$/.test(s||'');
   function parse(hash) {
     if (!hash || hash==='#' || hash==='#/') return {type:'overview'};

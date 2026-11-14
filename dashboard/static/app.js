@@ -107,6 +107,7 @@ function render() {
   if(O) Overview.update($("main"),O,$("#overview-filter").value);
   const waiting = S.initiatives.filter(i => AWAITING.has(i.stage)).length;
   $("#review-count").textContent = waiting || "";
+  if (O) $("#attention-count").textContent = (Overview.attentionRows(O).length + (O.attention || []).filter(a => !String(a.key).startsWith("i:")).length) || "";
   $("#meta").textContent = `${S.projects.length} projects · ${S.initiatives.length} initiatives · webhooks ${S.config.webhooks_enabled ? "on" : "off"}`;
 }
 
@@ -122,7 +123,7 @@ function pulseStats(name) {
   const r = O?.rollups?.projects?.find(x => x.project === name) || {}, e = O?.forecast?.projects?.[name] || {};
   let big, label, cls;
   if (e.completion_at) { big = Overview.until(e.completion_at); label = "next checkpoint · " + Overview.local(e.completion_at).replace(/ \(.*\)$/, ""); cls = "good"; }
-  else if (e.state === "waiting" || r.waiting_on_producer) { big = "You"; label = "waiting on your review"; cls = "warn"; }
+  else if (e.state === "waiting" || r.waiting_on_producer) { big = "Needs review"; label = "waiting on you"; cls = "warn"; }
   else if (!(r.open_initiatives || Object.keys(r.stages || {}).length)) { big = "—"; label = "no open work"; cls = "dim"; }
   else { big = "Blocked"; label = Overview.plain(e.reason || "not scheduled"); cls = "bad"; }
   const open = Object.values(r.stages || {}).reduce((a, b) => a + b, 0);
@@ -441,6 +442,7 @@ async function showProject(name, tab, quiet = false) {
   };
   const inits = d.initiatives.map(i => `<li><a href="#card-${i.id}" data-init="${i.id}">#${i.id} ${esc(i.title)}</a> <span class="stage">${esc(Overview.plain(i.stage))}</span></li>`).join("");
   tabs([
+    { key: "roadmap", label: "Roadmap", html: O ? Overview.projectRoadmap(O, name) : "" },
     { key: "dossier", label: "Dossier", html: d.dossier_html && `<article class="md">${d.dossier_html}</article>` },
     { key: "scan", label: "Scan facts", html: d.scan && `<pre class="raw">${esc(JSON.stringify(d.scan, null, 2))}</pre>` },
     { key: "audit", label: "Audit notes", html: d.audit_html && `<article class="md">${d.audit_html}</article>` },

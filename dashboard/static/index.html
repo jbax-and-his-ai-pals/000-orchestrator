@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Portfolio Orchestrator</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261113g">
+  <link rel="stylesheet" href="/static/style.css?v=20261113i">
 </head>
 <body>
   <header class="top">
@@ -12,6 +12,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="overview">Overview</button>
       <button class="tab" data-view="pulse">Portfolio Pulse</button>
+      <button class="tab" data-view="attention">Attention <span class="count" id="attention-count"></span></button>
       <button class="tab" data-view="work">Work</button>
       <button class="tab" data-view="triage">Triage Board <span class="count" id="review-count"></span></button>
       <button class="tab" data-view="activity">Activity</button>
@@ -38,19 +39,14 @@
       </div>
     </section>
     <section id="view-work" class="view" aria-label="Work">
-      <div class="toolbar"><h1>Work</h1><label>Project <select id="overview-filter"><option value="">All projects</option></select></label></div>
-      <div class="work-grid">
-        <div class="work-col">
-          <section class="card-panel" data-region="rollups" aria-label="Projects"></section>
-          <section class="card-panel"><div data-region="flight"></div><h2>Pending</h2><div data-region="pending"></div></section>
-        </div>
-        <div class="work-col">
-          <section class="card-panel" data-region="timeline" aria-label="Next hours"></section>
-          <section class="card-panel"><h2>Agent lanes</h2><div data-region="lanes" class="lane-grid"></div></section>
-          <section class="card-panel"><h2>Attention needed</h2><div data-region="attention"></div></section>
-          <section class="card-panel"><h2>Quota pace</h2><div data-region="quotas" class="pace-grid"></div></section>
-        </div>
-      </div>
+      <div class="toolbar"><h1>Work</h1><label class="hint">Project <select id="overview-filter"><option value="">All projects</option></select></label></div>
+      <section class="card-panel hero-panel" data-region="workActive"></section>
+      <section class="card-panel" data-region="workNext"></section>
+      <details class="card-panel" data-key="work-lanes"><summary>Agent lanes and timers</summary><div data-region="lanes" class="lane-grid"></div></details>
+    </section>
+    <section id="view-attention" class="view" aria-label="Attention">
+      <div class="toolbar"><h1>Attention</h1><span class="hint">Everything waiting on you, oldest first.</span></div>
+      <section class="card-panel" data-region="attentionFull"></section>
     </section>
     <section id="view-ideas" class="view" aria-label="Ideas">
       <div class="toolbar"><h1>Ideas</h1></div>
@@ -81,6 +77,7 @@
     </section>
     <section id="view-utilization" class="view" aria-label="Utilization">
       <div class="toolbar"><h1>Utilization</h1><label>History <select id="util-range" aria-label="History range"><option value="24h">24 hours</option><option value="7d">7 days</option><option value="14d">14 days</option></select></label></div>
+      <section class="card-panel"><h2>Quota pace</h2><div data-region="quotas" class="pace-grid"></div></section>
       <p id="util-status" role="status">Open this tab to load utilization.</p>
       <div id="util-content"></div>
     </section>
@@ -105,9 +102,9 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/overview.js?v=20261113g"></script>
-  <script src="/static/navigation.js?v=20261113g"></script>
-  <script src="/static/app.js?v=20261113g"></script>
-  <script src="/static/utilization.js?v=20261113g"></script>
+  <script src="/static/overview.js?v=20261113i"></script>
+  <script src="/static/navigation.js?v=20261113i"></script>
+  <script src="/static/app.js?v=20261113i"></script>
+  <script src="/static/utilization.js?v=20261113i"></script>
 </body>
 </html>

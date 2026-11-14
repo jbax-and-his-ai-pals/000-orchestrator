@@ -49,6 +49,7 @@
   function comparison(result) {
     return '<b>ETA now:</b> '+eta(result.eta_now)+'<br><b>If prioritized:</b> '+eta(result.if_prioritized)+'<p class="hint">Read-only: assumes top priority; active work, gates and exclusions still apply. Apply with the existing priority control.</p>'+(result.delayed?.length?'<ul>'+result.delayed.map(d=>'<li><a href="#/initiative/'+esc(d.initiative_id)+'">#'+esc(d.initiative_id)+'</a> '+(d.seconds==null?'delayed: '+esc(plain(d.reason)):'delayed ~'+Math.round(d.seconds/60)+' min; '+esc(local(d.completion_at)))+'</li>').join('')+'</ul>':'<p>No other defined work is forecast to finish later.</p>');
   }
+  function rows_(items){return rows(items);}
   function rows(items) {
     if(!items.length) return '<p class="hint">None.</p>';
     const age=s=>{const m=Math.floor((s||0)/60);return m<60?m+' min':Math.floor(m/60)+' hr '+(m%60)+' min';};
@@ -138,7 +139,7 @@
   }
   function needs(data) {
     const items=data.attention||[];
-    return '<h2>Needs you <span class="badge-n">'+items.length+'</span></h2>'+(items.length?'<ul class="needs">'+items.map(a=>'<li><a href="'+esc(a.href)+'"><b>'+esc(VERB[a.reason]||plain(a.reason))+'</b> '+esc(a.title)+'</a></li>').join('')+'</ul>':'<p class="hint">Nothing waiting on you.</p>');
+    return '<h2>Needs you <span class="badge-n">'+items.length+'</span> <a class="hint" href="#/tab/attention">all →</a></h2>'+(items.length?'<ul class="needs">'+items.map(a=>'<li><a href="'+esc(a.href)+'"><b>'+esc(VERB[a.reason]||plain(a.reason))+'</b> '+esc(a.title)+'</a></li>').join('')+'</ul>':'<p class="hint">Nothing waiting on you.</p>');
   }
   function milestoneRows(data) {
     const all=[...(data.in_flight||[]),...Object.values(data.pending||{}).flat()],seen=new Map();
@@ -173,6 +174,45 @@
     }).join('');
     return '<h2>Quota (5h windows)</h2>'+(rows||'<p class="hint">No quota readings yet.</p>')+'<a class="hint" href="#/tab/utilization">History →</a>';
   }
+  /* ---- Work tab: big rocks first ---- */
+  function workActive(data) {
+    const rows=data.in_flight||[],next=(data.forecast?.timeline||[])[0];
+    const hero=r=>{const e=r.estimate||{},chat=r.owner_basis==='claim',when=e.completion_at?until(e.completion_at):e.state==='waiting'?'Needs review':chat?'In chat':'—';
+      const sub=e.completion_at?'done ~'+clock(e.completion_at):chat?'working with you here':plain(e.reason||'no estimate');
+      return '<li class="hero-row"><div class="hero-eta '+(e.completion_at?'good':'dim')+'"><strong>'+esc(when)+'</strong><span>'+esc(sub)+'</span></div><div class="hero-body"><a href="'+esc(r.href)+'">#'+esc(r.initiative_id)+(r.subtask_id?' / '+esc(r.subtask_id):'')+' '+esc(r.title)+'</a><p>'+esc(detail(r))+'</p></div><span class="hero-owner">'+esc(owner(r.owner))+'</span></li>';};
+    return '<h2>Active now <span class="badge-n teal">'+rows.length+'</span></h2>'+(rows.length?'<ul class="hero">'+rows.map(hero).join('')+'</ul>':'<p class="hero-empty">Nothing is running right now.</p>')
+      +(next?'<p class="hero-next">Next start: <a href="'+esc(next.href)+'">'+esc(describe(next))+'</a> <b>'+esc(until(next.start_at))+'</b></p>':'');
+  }
+  function workNext(data) {
+    const groups=new Map();
+    for(const e of data.forecast?.timeline||[]){if(!groups.has(e.project))groups.set(e.project,[]);groups.get(e.project).push(e);}
+    if(!groups.size) return '<h2>Next work</h2><p class="hint">No agent run is forecast in the next 24 hours.</p>';
+    return '<h2>Next work · by project</h2><div class="next-groups">'+[...groups.entries()].map(([p,list])=>'<section class="next-group"><h3><a href="#/project/'+encodeURIComponent(p)+'">'+esc(p)+'</a></h3><ol>'+list.map(e=>'<li><time>'+esc(until(e.start_at))+'</time><a href="'+esc(e.href)+'">'+esc(describe(e))+'</a><span class="hint">'+esc(e.basis_label||'')+'</span></li>').join('')+'</ol></section>').join('')+'</div>';
+  }
+  /* ---- Attention tab: everything that needs the producer to act ---- */
+  const ACT={playtest:'Playtest',spark:'Approve pitch',hld_review:'Review HLD',lld_review:'Review LLD + plan'};
+  function attentionRows(data) {
+    const all=[...(data.in_flight||[]),...Object.values(data.pending||{}).flat()],seen=new Set(),out=[];
+    for(const r of all){if(r.subtask_id&&r.status!=='todo'&&r.owner!=='producer')continue;
+      const needs=ACT[r.stage]&&!r.subtask_id||r.owner==='producer';const key=r.initiative_id+':'+(r.subtask_id||'');
+      if(needs&&!seen.has(key)){seen.add(key);out.push(r);}}
+    return out.sort((a,b)=>(b.age_seconds||0)-(a.age_seconds||0));
+  }
+  function attentionFull(data) {
+    const rows=attentionRows(data),other=(data.attention||[]).filter(a=>!String(a.key).startsWith('i:'));
+    const age=s=>{const m=Math.floor((s||0)/60);return m<60?m+' min':Math.floor(m/60)+' hr '+(m%60)+' min';};
+    const row=r=>{const e=r.estimate||{},then=e.if_approved_now;
+      return '<li class="att-row"><span class="att-verb">'+esc(r.subtask_id?'Hands-on check':ACT[r.stage]||'Act')+'</span><div><a href="'+esc(r.href)+'">#'+esc(r.initiative_id)+(r.subtask_id?' / '+esc(r.subtask_id):'')+' '+esc(r.title)+'</a><p class="hint">'+esc(r.project)+(then?' · after you act: '+(then.completion_at?'lands '+until(then.completion_at):plain(then.reason||'')):'')+'</p></div><span class="att-age">waiting '+esc(age(r.age_seconds))+'</span></li>';};
+    return '<h2>Needs you <span class="badge-n">'+(rows.length+other.length)+'</span></h2>'+(rows.length?'<ul class="att-list">'+rows.map(row).join('')+'</ul>':'<p class="hero-empty">Nothing needs you right now.</p>')
+      +(other.length?'<h3>Housekeeping</h3><ul class="att-list">'+other.map(a=>'<li class="att-row"><span class="att-verb">'+esc(VERB[a.reason]||'Check')+'</span><div><a href="'+esc(a.href)+'">'+esc(a.title)+'</a></div><span></span></li>').join('')+'</ul>':'');
+  }
+  function projectRoadmap(data,project) {
+    const roll=(data.rollups?.projects||[]).find(p=>p.project===project)||{};
+    const rows=[...(data.in_flight||[]),...Object.values(data.pending||{}).flat()].filter(r=>r.project===project);
+    const stages=Object.entries(roll.stages||{}).map(([s,n])=>'<span class="pill dim">'+esc(STAGE[s]||plain(s))+' '+esc(n)+'</span>').join(' ');
+    return '<div class="roadmap"><p>'+stages+' <span class="pill">'+esc((roll.subtasks_done??0)+'/'+(roll.subtasks_total??0))+' subtasks</span></p>'
+      +'<h3>Work breakdown</h3>'+rows_(rows)+'<h3>Next 24 hours</h3>'+timeline(data,project).replace(/^<h2>Next hours<\/h2>/,'')+'</div>';
+  }
   function regions(data,project='') {
     const filter=items=>items.filter(i=>!project||i.project===project);
     const total=(key,fallback)=>data.pages?.[key]?.total??fallback;
@@ -189,7 +229,7 @@
     const pending=Object.entries(data.pending||{}).map(([name,items])=>'<details data-key="pending-'+esc(name)+'"'+(['producer','queued'].includes(name)?' open':'')+'><summary>'+esc(plain(name))+' ('+total('pending.'+name,filter(items).length)+')</summary>'+rows(filter(items))+more('pending.'+name)+'</details>').join('');
     const quotas=(data.lanes||[]).map(l=>Object.entries(l.quota?.windows||{}).map(([w,m])=>'<article class="pace"><b>'+esc(l.label)+' · '+esc(w)+'</b><p>'+esc(m.value??'not recorded')+'% remaining · '+esc(plain(m.status))+'</p><p>'+esc(m.pace)+' · even-burn target used '+(m.target_used==null?'not available':m.target_used.toFixed(1)+'%')+'</p><p>Actual used '+(m.actual_used==null?'not available':m.actual_used.toFixed(1)+'%')+' · difference '+(m.delta_pp==null?'not available':m.delta_pp.toFixed(1)+'pp')+'</p><p class="hint">'+esc(plain(m.baseline||m.reason||'pace unavailable'))+' · reset '+esc(local(m.meta?.resets_at))+' · observed '+esc(local(m.observed_at))+'</p>'+(m.hint?'<p class="warning">'+esc(m.hint)+'</p>':'')+'</article>').join('')).join('');
     const attention=(data.attention||[]).map(a=>'<li><a href="'+esc(a.href)+'">'+esc(a.title)+'</a> · '+esc(plain(a.reason))+'</li>').join('')||'<li>None.</li>';
-    return {kpis:kpis(data),now:now(data),needs:needs(data),milestones:milestones(data),quotabar:quotabar(data),stamp:'Updated '+esc(local(data.generated_at)),rollups:rollups(data,project),timeline:timeline(data,project),lanes,next:'<h2>Next expected update</h2>'+nextUpdate(data.next_update)+upcoming(data)+'<p class="hint">Next scheduled agent run: '+esc(local(data.next_update?.next_check_at))+'</p>',flight:'<h2>In flight ('+total('in_flight',inFlight.length)+' rows)</h2>'+rows(inFlight)+more('in_flight'),pending,quotas:quotas||'<p>Quota pace unavailable. Gemini has no measured quota; Gemma is local.</p>',attention:'<ul>'+attention+'</ul>',suggestions:rows(filter(data.suggestions||[]))+more('suggestions')};
+    return {workActive:workActive(data),workNext:workNext(data),attentionFull:attentionFull(data),kpis:kpis(data),now:now(data),needs:needs(data),milestones:milestones(data),quotabar:quotabar(data),stamp:'Updated '+esc(local(data.generated_at)),rollups:rollups(data,project),timeline:timeline(data,project),lanes,next:'<h2>Next expected update</h2>'+nextUpdate(data.next_update)+upcoming(data)+'<p class="hint">Next scheduled agent run: '+esc(local(data.next_update?.next_check_at))+'</p>',flight:'<h2>In flight ('+total('in_flight',inFlight.length)+' rows)</h2>'+rows(inFlight)+more('in_flight'),pending,quotas:quotas||'<p>Quota pace unavailable. Gemini has no measured quota; Gemma is local.</p>',attention:'<ul>'+attention+'</ul>',suggestions:rows(filter(data.suggestions||[]))+more('suggestions')};
   }
   function update(container,data,project='') {
     for(const [key,html] of Object.entries(regions(data,project))) {
@@ -200,6 +240,6 @@
       for(const d of element.querySelectorAll('details[data-key]')) if(open.has(d.dataset.key)) d.open=open.get(d.dataset.key);
     }
   }
-  const exports={esc,plain,owner,local,eta,rows,regions,update,preview,comparison,summary,setComparison,until,describe,milestoneRows,landing,detail};
+  const exports={attentionRows,projectRoadmap,esc,plain,owner,local,eta,rows,regions,update,preview,comparison,summary,setComparison,until,describe,milestoneRows,landing,detail};
   if(typeof module!=='undefined') module.exports=exports;else root.Overview=exports;
 })(typeof window!=='undefined'?window:globalThis);

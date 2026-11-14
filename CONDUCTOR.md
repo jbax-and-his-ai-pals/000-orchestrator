@@ -23,10 +23,13 @@ _Last updated: 2026-11-13 20:00 PT_
 - Dispatch within the 5h windows; weekly quota is information only ("if we hit weekly quota, that's unfortunate").
   Revisit now that the MVP shipped. Gemma should always have work.
 - Working mode: Codex for logic and volume; visual polish in chat ("if you'd judge it by looking, iterate here").
+- Non-orchestrator (game) work takes a back seat until the orchestrator milestones are done (producer, 2026-11-13).
+  Don't dispatch frontier agents at game cards; Gemma's background dossier and smoke work continues.
 
 ## Waiting on the producer
-- #7 is folded into #8 and can be closed (reject with a note) on the producer's word. #6's pacing part shipped in #8.
-- #2 playtest (`designs/0002-*/playtest.cmd`). #4 HLD review. #6 LLD review. Sparks #3, #9 (chat inside the orchestrator), #10.
+- #6 (quota forecasting + budget-aware routing) is milestone 2 work, but its LLD predates #8, which shipped the pacing
+  part. Send it back to lld_draft to rebase on #8 (needs the producer's word). #7 closed as absorbed into #8.
+- Back seat (game work): #2 playtest, #4 HLD review, spark #3. Orchestrator sparks: #9 (chat inside the orchestrator), #10 (seeding).
 - Tailscale: the producer enables Serve in the admin console, then run `tailscale serve --bg 8420`.
 
 ## Quirks

@@ -80,7 +80,7 @@
     const tile=(n,label,cls,href,sub)=>'<'+(href?'a href="'+href+'"':'div')+' class="kpi '+(cls||'')+'"><strong>'+esc(n)+'</strong><span>'+esc(label)+'</span>'+(sub?'<em>'+sub+'</em>':'')+'</'+(href?'a':'div')+'>';
     const wk=k=>{const v=q(k,'weekly');return 'weekly <b class="'+quotaClass(v)+'-t">'+esc(pct(v))+'</b> left';};
     const g=data.gemini_free_tier||{};
-    const gem=g.exhausted?['Exhausted','bad','hit a 429 · resets '+until(g.resets_at)]:[g.runs_today?g.runs_today+' runs':'Unused','good','free tier today · resets '+until(g.resets_at)];
+    const gem=g.exhausted?['Unavailable','bad','free tier used up · resets '+until(g.resets_at)]:['Available','good',(g.runs_today?g.runs_today+' runs today':'free tier unused today')+' · resets '+until(g.resets_at)];
     return tile(t.waiting_on_producer??0,'Waiting on you',t.waiting_on_producer?'warn':'','#/tab/triage')
       +tile(t.in_flight??0,'In flight','teal','#/tab/activity')
       +tile(t.queued_subtasks??0,'Queued subtasks')

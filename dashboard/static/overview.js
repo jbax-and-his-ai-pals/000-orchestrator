@@ -58,13 +58,85 @@
     return '<div class="rollup-totals">'+[['Open initiatives','open_initiatives'],['In flight','in_flight'],['Waiting on you','waiting_on_producer'],['Blocked','blocked'],['Queued subtasks','queued_subtasks']].map(([label,key])=>'<div><strong>'+esc(t?.[key]??0)+'</strong><span>'+label+'</span></div>').join('')+'</div>';
   }
   function rollups(data,project) {
-    const projects=(data.rollups?.projects||[]).filter(p=>!project||p.project===project);
+    const all=(data.rollups?.projects||[]).filter(p=>!project||p.project===project);
+    const projects=all.filter(p=>project||p.subtasks_total||Object.keys(p.stages||{}).length),idle=all.filter(p=>!projects.includes(p));
     const totals=project?projects[0]:data.rollups?.totals;
-    return summary(totals)+'<details data-key="project-rollups" open><summary>Project rollups</summary><div class="table-scroll"><table class="subtasks"><thead><tr><th>Project / stages</th><th>Subtasks</th><th>In flight / waiting</th><th>Rollup ETA (next checkpoints)</th></tr></thead><tbody>'+projects.map(p=>'<tr><td><a href="#/project/'+encodeURIComponent(p.project)+'">'+esc(p.project)+'</a><p class="hint">'+Object.entries(p.stages||{}).map(([s,n])=>esc(plain(s))+': '+esc(n)).join(' · ')+'</p></td><td>'+esc(p.subtasks_done)+'/'+esc(p.subtasks_total)+'</td><td>'+esc(p.in_flight)+' in flight / '+esc(p.waiting_on_producer)+' waiting on you</td><td>'+preview('project',p.project,p.estimate)+'</td></tr>').join('')+'</tbody></table></div></details>';
+    return summary(totals)+'<details data-key="project-rollups" open><summary>Project rollups</summary><div class="table-scroll"><table class="subtasks"><thead><tr><th>Project / stages</th><th>Subtasks</th><th>In flight / waiting</th><th>Rollup ETA (next checkpoints)</th></tr></thead><tbody>'+projects.map(p=>'<tr><td><a href="#/project/'+encodeURIComponent(p.project)+'">'+esc(p.project)+'</a><p class="hint">'+Object.entries(p.stages||{}).map(([s,n])=>esc(plain(s))+': '+esc(n)).join(' · ')+'</p></td><td>'+esc(p.subtasks_done)+'/'+esc(p.subtasks_total)+'</td><td>'+esc(p.in_flight)+' in flight / '+esc(p.waiting_on_producer)+' waiting on you</td><td>'+preview('project',p.project,p.estimate)+'</td></tr>').join('')+'</tbody></table></div>'+(idle.length?'<p class="hint">No open initiatives: '+idle.map(p=>'<a href="#/project/'+encodeURIComponent(p.project)+'">'+esc(p.project)+'</a>').join(', ')+'</p>':'')+'</details>';
   }
   function timeline(data,project) {
     const events=(data.forecast?.timeline||[]).filter(e=>!project||e.project===project);
     return '<h2>Next hours</h2><p class="hint">Forecast for the next 24 hours, to the next producer checkpoint. Future plans are not invented; gates are never auto-approved.</p>'+(data.forecast?.truncated?'<p class="warning">Forecast budget reached; remaining work is explicitly outside this forecast.</p>':'')+(data.forecast?.reason?'<p class="warning">'+esc(data.forecast.reason)+'</p>':'')+(events.length?'<ol class="forecast-timeline">'+events.map(e=>'<li><time>'+esc(local(e.start_at))+'</time> <b>'+esc(owner(e.actor))+'</b> '+(e.work_type==='scan'?'picks up ':'starts #'+esc(e.initiative_id)+' '+esc(plain(e.work_type))+' ' )+'<a href="'+esc(e.href)+'">'+esc(e.title)+'</a> · '+esc(e.basis_label)+' · done ~'+esc(local(e.completion_at))+'</li>').join('')+'</ol>':'<p>No eligible start is forecast from the current schedules. See row ETAs for paused lanes, spotlight, chat ownership or producer gates.</p>');
+  }
+
+  /* ---- crisp overview: numbers, status, action, milestones ---- */
+  const WHO={gemma:'Gemma',codex:'Codex',claude:'Claude',gemini:'Gemini',chat:'Chat'};
+  const VERB={'branch to playtest':'Playtest','HLD to review':'Review HLD','LLD + plan to review':'Review LLD + plan','pitch to approve':'Approve pitch','quota stale':'Refresh quota reading'};
+  function quotaClass(v){return v==null?'':v<20?'bad':v<50?'warn':'good';}
+  function kpis(data) {
+    const t=data.rollups?.totals||{},q=k=>(data.lanes||[]).find(l=>l.key===k)?.quota?.windows?.['5h']?.value;
+    const pct=v=>v==null?'—':Math.round(v)+'%';
+    const tile=(n,label,cls,href)=>'<'+(href?'a href="'+href+'"':'div')+' class="kpi '+(cls||'')+'"><strong>'+esc(n)+'</strong><span>'+esc(label)+'</span></'+(href?'a':'div')+'>';
+    return tile(t.waiting_on_producer??0,'Waiting on you',t.waiting_on_producer?'warn':'','#/tab/triage')
+      +tile(t.in_flight??0,'In flight','teal','#/tab/activity')
+      +tile(t.queued_subtasks??0,'Queued subtasks')
+      +tile(t.blocked??0,'Blocked',t.blocked?'bad':'','#/tab/work')
+      +tile(t.open_initiatives??0,'Open initiatives','','#/tab/work')
+      +tile((t.subtasks_done??0)+'/'+(t.subtasks_total??0),'Subtasks done')
+      +tile(pct(q('codex')),'Codex 5h left',quotaClass(q('codex')))
+      +tile(pct(q('claude')),'Claude 5h left',quotaClass(q('claude')));
+  }
+  function nextFor(data,actor){return (data.forecast?.timeline||[]).find(e=>e.actor===actor);}
+  const clock=iso=>local(iso).replace(/ \(.*\)$/,'');
+  function now(data) {
+    return '<h2>Agents now</h2><ul class="now-list">'+(data.lanes||[]).map(l=>{
+      const paused=l.scheduler?.state==='paused',next=nextFor(data,l.key);
+      let text,cls;
+      if(l.key==='chat'){const c=(l.claims||[]).map(c=>'#'+c.initiative_id+' '+c.title);text=c.length?'working with you on '+c.join(', '):'no chat claims';cls=c.length?'busy':'idle';}
+      else if(l.activity?.task_ref){text='working on '+l.activity.task_ref+(l.activity.started_at?' since '+clock(l.activity.started_at):'');cls='busy';}
+      else if(paused){text='paused: dispatch from chat or resume its lane';cls='paused';}
+      else if(next){text='next: '+describe(next)+', '+until(next.start_at);cls='idle';}
+      else {text='idle: nothing in its lane right now';cls='idle';}
+      return '<li class="now-'+cls+'"><span class="pip"></span><b>'+esc(WHO[l.key]||l.label)+'</b><span>'+esc(text)+'</span></li>';
+    }).join('')+'</ul>';
+  }
+  function upcoming(data) {
+    const events=(data.forecast?.timeline||[]).slice(1,5);
+    return events.length?'<h3>Then</h3><ol class="upcoming">'+events.map(e=>'<li><time>'+esc(until(e.start_at))+'</time><a href="'+esc(e.href)+'">'+esc(describe(e))+'</a></li>').join('')+'</ol>':'';
+  }
+  function needs(data) {
+    const items=data.attention||[];
+    return '<h2>Needs you <span class="badge-n">'+items.length+'</span></h2>'+(items.length?'<ul class="needs">'+items.map(a=>'<li><a href="'+esc(a.href)+'"><b>'+esc(VERB[a.reason]||plain(a.reason))+'</b> '+esc(a.title)+'</a></li>').join('')+'</ul>':'<p class="hint">Nothing waiting on you.</p>');
+  }
+  function milestoneRows(data) {
+    const all=[...(data.in_flight||[]),...Object.values(data.pending||{}).flat()],seen=new Map();
+    for(const r of all){const prev=seen.get(r.initiative_id);if(!prev||(prev.subtask_id&&!r.subtask_id))seen.set(r.initiative_id,r);}
+    const at=r=>r.estimate?.completion_at?Date.parse(r.estimate.completion_at):Infinity;
+    return [...seen.values()].sort((a,b)=>at(a)-at(b)||(a.initiative_id-b.initiative_id));
+  }
+  function landing(r) {
+    const e=r.estimate||{};
+    if(e.completion_at) return {cls:'eta',text:'lands '+until(e.completion_at)+' ('+clock(e.completion_at)+')'};
+    const ask={playtest:'playtest it',spark:'approve the pitch',hld_review:'review the HLD',lld_review:'review the LLD + plan'}[r.stage];
+    if(e.state==='waiting'||ask) return {cls:'you',text:'waiting on you: '+(ask||plain(r.stage))};
+    return {cls:'blocked',text:plain(e.reason||'not scheduled')};
+  }
+  function milestones(data) {
+    const rows=milestoneRows(data),soon=rows.find(r=>r.estimate?.completion_at);
+    const headline=soon?'<p class="headline">Next to land: <a href="'+esc(soon.href)+'">'+esc(soon.title)+'</a>, '+esc(until(soon.estimate.completion_at))+'.</p>'
+      :'<p class="headline">Nothing lands without you right now: '+rows.filter(r=>landing(r).cls==='you').length+' item(s) wait on your review.</p>';
+    return '<h2>Milestones</h2>'+headline+'<ul class="milestones">'+rows.map(r=>{const l=landing(r),p=r.progress||{};
+      return '<li class="ms-'+l.cls+'"><a href="'+esc(r.href)+'">#'+esc(r.initiative_id)+' '+esc(r.title)+'</a><span class="ms-proj">'+esc(r.project)+'</span>'
+        +(p.total?'<span class="ms-bar" title="'+esc(p.done+'/'+p.total)+' subtasks"><i style="width:'+Math.round(100*p.done/p.total)+'%"></i></span>':'<span class="ms-bar empty"></span>')
+        +'<span class="ms-when">'+esc(l.text)+'</span></li>';}).join('')+'</ul>';
+  }
+  function quotabar(data) {
+    const rows=(data.lanes||[]).filter(l=>l.quota?.windows&&Object.keys(l.quota.windows).length).map(l=>{
+      const w5=l.quota.windows['5h']||{},wk=l.quota.windows.weekly||{},v=w5.value;
+      const pace=w5.delta_pp==null?'pace unknown':Math.abs(w5.delta_pp)<=5?'on pace':(w5.delta_pp>0?'over':'under')+' pace by '+Math.abs(w5.delta_pp).toFixed(0)+' pts';
+      return '<div class="qrow"><b>'+esc(l.label)+'</b><div class="qbar '+quotaClass(v)+'"><i style="width:'+(v??0)+'%"></i></div><strong>'+(v==null?'—':Math.round(v)+'%')+'</strong>'
+        +'<span class="hint">5h left · '+esc(pace)+' · resets '+esc(w5.meta?.resets_at?until(w5.meta.resets_at):'unknown')+(wk.value!=null?' · weekly '+Math.round(wk.value)+'% left (info only)':'')+(w5.age_seconds>3600?' · <span class="warn-t">stale reading</span>':'')+'</span></div>';
+    }).join('');
+    return '<h2>Quota (5h windows)</h2>'+(rows||'<p class="hint">No quota readings yet.</p>')+'<a class="hint" href="#/tab/utilization">History →</a>';
   }
   function regions(data,project='') {
     const filter=items=>items.filter(i=>!project||i.project===project);
@@ -75,7 +147,7 @@
     const pending=Object.entries(data.pending||{}).map(([name,items])=>'<details data-key="pending-'+esc(name)+'" open><summary>'+esc(plain(name))+' ('+total('pending.'+name,filter(items).length)+')</summary>'+rows(filter(items))+more('pending.'+name)+'</details>').join('');
     const quotas=(data.lanes||[]).map(l=>Object.entries(l.quota?.windows||{}).map(([w,m])=>'<article class="pace"><b>'+esc(l.label)+' · '+esc(w)+'</b><p>'+esc(m.value??'not recorded')+'% remaining · '+esc(plain(m.status))+'</p><p>'+esc(m.pace)+' · even-burn target used '+(m.target_used==null?'not available':m.target_used.toFixed(1)+'%')+'</p><p>Actual used '+(m.actual_used==null?'not available':m.actual_used.toFixed(1)+'%')+' · difference '+(m.delta_pp==null?'not available':m.delta_pp.toFixed(1)+'pp')+'</p><p class="hint">'+esc(plain(m.baseline||m.reason||'pace unavailable'))+' · reset '+esc(local(m.meta?.resets_at))+' · observed '+esc(local(m.observed_at))+'</p>'+(m.hint?'<p class="warning">'+esc(m.hint)+'</p>':'')+'</article>').join('')).join('');
     const attention=(data.attention||[]).map(a=>'<li><a href="'+esc(a.href)+'">'+esc(a.title)+'</a> · '+esc(plain(a.reason))+'</li>').join('')||'<li>None.</li>';
-    return {rollups:rollups(data,project),timeline:timeline(data,project),lanes,next:'<h2>Next expected update</h2>'+nextUpdate(data.next_update)+'<p>Next scheduled agent run: '+esc(local(data.next_update?.next_check_at))+'</p><span class="hint">Observed '+esc(local(data.generated_at))+' · '+data.totals.initiatives+' open initiatives (parent and subtask rows are separate)</span>',flight:'<h2>In flight ('+total('in_flight',inFlight.length)+' rows)</h2>'+rows(inFlight)+more('in_flight'),pending,quotas:quotas||'<p>Quota pace unavailable. Gemini has no measured quota; Gemma is local.</p>',attention:'<ul>'+attention+'</ul>',suggestions:rows(filter(data.suggestions||[]))+more('suggestions')};
+    return {kpis:kpis(data),now:now(data),needs:needs(data),milestones:milestones(data),quotabar:quotabar(data),stamp:'Updated '+esc(local(data.generated_at)),rollups:rollups(data,project),timeline:timeline(data,project),lanes,next:'<h2>Next expected update</h2>'+nextUpdate(data.next_update)+upcoming(data)+'<p class="hint">Next scheduled agent run: '+esc(local(data.next_update?.next_check_at))+'</p>',flight:'<h2>In flight ('+total('in_flight',inFlight.length)+' rows)</h2>'+rows(inFlight)+more('in_flight'),pending,quotas:quotas||'<p>Quota pace unavailable. Gemini has no measured quota; Gemma is local.</p>',attention:'<ul>'+attention+'</ul>',suggestions:rows(filter(data.suggestions||[]))+more('suggestions')};
   }
   function update(container,data,project='') {
     for(const [key,html] of Object.entries(regions(data,project))) {
@@ -86,6 +158,6 @@
       for(const d of element.querySelectorAll('details[data-key]')) if(open.has(d.dataset.key)) d.open=open.get(d.dataset.key);
     }
   }
-  const exports={esc,plain,owner,local,eta,rows,regions,update,preview,comparison,summary,setComparison};
+  const exports={esc,plain,owner,local,eta,rows,regions,update,preview,comparison,summary,setComparison,until,describe,milestoneRows,landing};
   if(typeof module!=='undefined') module.exports=exports;else root.Overview=exports;
 })(typeof window!=='undefined'?window:globalThis);

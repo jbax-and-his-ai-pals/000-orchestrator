@@ -260,11 +260,11 @@ def snapshot(orch,clock=None,bump=None):
     for lane in lanes:
         upcoming=[e for e in model['timeline'] if e['actor']==lane['key']]
         if upcoming: lane['estimate']=min(upcoming,key=lambda e:e['completion_at'])
-        elif lane['scheduler']['state']=='paused': lane['estimate']={'state':'blocked','reason':"won't run until resumed"}
+        elif lane['scheduler']['state']=='paused': lane['estimate']={'state':'blocked','reason':'paused: dispatch from chat or resume its lane'}
         for job in lane['jobs']:
             choices=[e for e in upcoming if e['work_type']!='hld' or (by_id_complexity(inits,e['initiative_id'])=='high')==job['declaration'].endswith('-opus')]
             if choices: job['estimate']=choices[0]
-            elif not job['enabled']: job['estimate']={'state':'blocked','reason':"won't run until resumed"}
+            elif not job['enabled']: job['estimate']={'state':'blocked','reason':'paused: dispatch from chat or resume its lane'}
     all_rows=rows+[r for group in pending.values() for r in group]
     progress={i['id']:json.loads(i['execution_plan_json'] or '{}').get('subtasks',[]) for i in inits}
     for row in all_rows:

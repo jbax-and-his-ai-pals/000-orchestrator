@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Portfolio Orchestrator</title>
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=20261113c">
 </head>
 <body>
   <header class="top">
@@ -12,9 +12,11 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="overview">Overview</button>
       <button class="tab" data-view="pulse">Portfolio Pulse</button>
+      <button class="tab" data-view="work">Work</button>
       <button class="tab" data-view="triage">Triage Board <span class="count" id="review-count"></span></button>
       <button class="tab" data-view="activity">Activity</button>
       <button class="tab" data-view="utilization">Utilization</button>
+      <button class="tab" data-view="ideas">Ideas</button>
       <button class="tab" data-view="taste">Taste Profile</button>
     </nav>
     <div class="meta" id="meta"></div>
@@ -23,21 +25,37 @@
   <div id="spotlight-banner" class="spot-banner" hidden></div>
   <main>
     <section id="view-overview" class="view active" aria-label="Overview">
-      <div class="toolbar"><h1>How are we doing?</h1><label>Project <select id="overview-filter"><option value="">All projects</option></select></label><a href="#/tab/triage">Producer inbox</a></div>
+      <div class="ov-head"><h1>How are we doing?</h1><span class="hint" data-region="stamp"></span></div>
+      <div class="kpis" data-region="kpis"></div>
+      <div class="ov-grid">
+        <section class="card-panel" data-region="now"></section>
+        <section class="card-panel ov-next" data-region="next"></section>
+        <section class="card-panel" data-region="needs"></section>
+      </div>
+      <div class="ov-grid ov-grid-2">
+        <section class="card-panel" data-region="milestones"></section>
+        <section class="card-panel" data-region="quotabar"></section>
+      </div>
+    </section>
+    <section id="view-work" class="view" aria-label="Work">
+      <div class="toolbar"><h1>Work</h1><label>Project <select id="overview-filter"><option value="">All projects</option></select></label></div>
       <section data-region="rollups" aria-label="Project rollups"></section>
-      <div data-region="next" class="next-update"></div>
       <section data-region="timeline" aria-label="Next hours"></section>
+      <h2>Agent lanes</h2>
       <div data-region="lanes" class="lane-grid"></div>
-      <div class="overview-columns"><div><section data-region="flight"></section><h2>Pending work</h2><div data-region="pending"></div></div>
-        <aside><h2>Attention needed</h2><div data-region="attention"></div><h2>Quota pace</h2><div data-region="quotas"></div><a href="#/tab/utilization">Quota / GPU history</a></aside></div>
-      <section><h2>Suggestions · orchestrator sparks</h2><div data-region="suggestions"></div>
-        <form id="idea-form"><h3>Add idea (creates a spark only)</h3><label>Title <input name="title" required maxlength="160"></label><label>Evidence and idea <textarea name="pitch" required maxlength="4000"></textarea></label><label>Category <select name="category"><option value="optimization">optimization</option><option value="tech_audacity">tech audacity</option><option value="visual_craft">visual craft</option><option value="fun_gameplay">fun / gameplay</option><option value="new_game">new game</option></select></label><button class="btn" type="submit">Add idea</button><span role="status" id="idea-status"></span></form>
-      </section>
+      <section data-region="flight"></section><h2>Pending work</h2><div data-region="pending"></div>
+      <h2>Attention needed</h2><div data-region="attention"></div><h2>Quota pace</h2><div data-region="quotas" class="pace-grid"></div>
+    </section>
+    <section id="view-ideas" class="view" aria-label="Ideas">
+      <div class="toolbar"><h1>Ideas</h1></div>
+      <section><h2>Orchestrator suggestions (sparks)</h2><div data-region="suggestions"></div></section>
+      <form id="idea-form"><h3>Add idea (creates a spark only)</h3><label>Title <input name="title" required maxlength="160"></label><label>Evidence and idea <textarea name="pitch" required maxlength="4000"></textarea></label><label>Category <select name="category"><option value="optimization">optimization</option><option value="tech_audacity">tech audacity</option><option value="visual_craft">visual craft</option><option value="fun_gameplay">fun / gameplay</option><option value="new_game">new game</option></select></label><button class="btn" type="submit">Add idea</button><span role="status" id="idea-status"></span></form>
     </section>
     <section id="view-pulse" class="view">
       <div class="toolbar">
         <input id="filter" type="search" placeholder="Filter projects…" aria-label="Filter projects">
         <label class="chk"><input type="checkbox" id="show-skip"> show skipped</label>
+        <label class="cols">Cards per row <input type="range" id="pulse-cols" min="1" max="4" step="1" value="1"> <output id="pulse-cols-out">1</output></label>
       </div>
       <div id="pulse" class="pulse-grid"></div>
     </section>
@@ -47,7 +65,14 @@
       <details class="closed"><summary id="closed-summary">Closed</summary><div id="closed" class="closed-list"></div></details>
     </section>
 
-    <section id="view-activity" class="view"><ol id="activity" class="activity"></ol></section>
+    <section id="view-activity" class="view" aria-label="Activity">
+      <div class="act-grid">
+        <section class="card-panel"><h2>Active now</h2><div id="act-active"></div></section>
+        <section class="card-panel"><h2>Coming up</h2><div id="act-upcoming"></div></section>
+      </div>
+      <h2>Activity feed</h2>
+      <ol id="activity" class="activity feed"></ol>
+    </section>
     <section id="view-utilization" class="view" aria-label="Utilization">
       <div class="toolbar"><h1>Utilization</h1><label>History <select id="util-range" aria-label="History range"><option value="24h">24 hours</option><option value="7d">7 days</option><option value="14d">14 days</option></select></label></div>
       <p id="util-status" role="status">Open this tab to load utilization.</p>
@@ -74,9 +99,9 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/overview.js"></script>
-  <script src="/static/navigation.js"></script>
-  <script src="/static/app.js"></script>
-  <script src="/static/utilization.js"></script>
+  <script src="/static/overview.js?v=20261113c"></script>
+  <script src="/static/navigation.js?v=20261113c"></script>
+  <script src="/static/app.js?v=20261113c"></script>
+  <script src="/static/utilization.js?v=20261113c"></script>
 </body>
 </html>

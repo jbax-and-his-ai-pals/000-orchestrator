@@ -104,7 +104,7 @@ function renderSpotlight() {
 
 function render() {
   renderSpotlight(); renderPulse(); renderBoard(); renderActivity();
-  if(O) Overview.update($("#view-overview"),O,$("#overview-filter").value);
+  if(O) Overview.update($("main"),O,$("#overview-filter").value);
   const waiting = S.initiatives.filter(i => AWAITING.has(i.stage)).length;
   $("#review-count").textContent = waiting || "";
   $("#meta").textContent = `${S.projects.length} projects · ${S.initiatives.length} initiatives · webhooks ${S.config.webhooks_enabled ? "on" : "off"}`;
@@ -192,11 +192,33 @@ function renderBoard() {
 
 /* ---------------- activity + taste ---------------- */
 
+const ACTOR_CLS = a => /codex/.test(a) ? "codex" : /gemma|scout/.test(a) ? "gemma" : /claude-desktop|chat/.test(a) ? "chat" : /claude|architect/.test(a) ? "claude" : /gemini/.test(a) ? "gemini" : /producer|dashboard/.test(a) ? "you" : "sys";
+function feedText(msg) {
+  return esc(msg)
+    .replace(/\b(PASS(?:ED)?|OK)\b/g, '<span class="ok-t">$1</span>')
+    .replace(/\b(FAIL(?:ED)?|BLOCKED|ERROR)\b/gi, '<span class="bad-t">$1</span>')
+    .replace(/\b([0-9a-f]{7,40})\b/g, m => /[a-f]/.test(m) && /\d/.test(m) ? `<code>${m.slice(0, 7)}</code>` : m)
+    .replace(/(?:^|\s)#(\d+)\b/g, (m, n) => `${m.startsWith(" ") ? " " : ""}<a href="#/initiative/${n}">#${n}</a>`)
+    .replace(/ -&gt; /g, ' <span class="arrow">→</span> ');
+}
 function renderActivity() {
-  $("#activity").innerHTML = S.events.map(e => `<li><span class="ts">${esc(Overview.local(e.ts))}</span>
-    <span class="actor">${esc(e.actor)}</span>
-    <span>${e.project_name ? `<b>${esc(short(e.project_name))}</b> · ` : ""}${e.initiative_id ? `<a href="#card-${e.initiative_id}" data-init="${e.initiative_id}">#${e.initiative_id}</a> · ` : ""}${esc(e.kind)} ${esc(e.message || "")}</span></li>`).join("")
-    || `<li class="empty">No activity yet.</li>`;
+  if (O) {
+    const active = (O.in_flight || []);
+    $("#act-active").innerHTML = active.length ? `<ul class="act-list">${active.map(r => `<li><a href="${esc(r.href)}">#${esc(r.initiative_id)}${r.subtask_id ? " / " + esc(r.subtask_id) : ""} ${esc(r.title)}</a><span class="actor-chip ${ACTOR_CLS(r.owner || "")}">${esc(r.owner || "unknown")}</span><span class="act-eta">${Overview.eta(r.estimate)}</span></li>`).join("")}</ul>`
+      : `<p class="hint">Nothing is running right now.</p>`;
+    const next = (O.forecast?.timeline || []).slice(0, 6);
+    $("#act-upcoming").innerHTML = next.length ? `<ul class="act-list">${next.map(e => `<li><a href="${esc(e.href)}">${esc(Overview.describe(e))}</a><span class="act-eta">${esc(Overview.until(e.start_at))} · takes ${esc(e.basis_label || "unknown")}</span></li>`).join("")}</ul>`
+      : `<p class="hint">No agent run is forecast in the next 24 hours.</p>`;
+  }
+  let day = "";
+  $("#activity").innerHTML = S.events.map(e => {
+    const d = new Date(e.ts).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+    const head = d !== day ? `<li class="day">${esc(d)}</li>` : ""; day = d;
+    return `${head}<li class="ev k-${esc(String(e.kind).replace(/[^a-z_]/gi, ""))}"><span class="ts">${esc(new Date(e.ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}</span>
+    <span class="actor-chip ${ACTOR_CLS(e.actor)}">${esc(e.actor)}</span>
+    <span class="kind">${esc(e.kind)}</span>
+    <span class="msg">${e.project_name ? `<b class="proj">${esc(short(e.project_name))}</b> ` : ""}${e.initiative_id ? `<a href="#/initiative/${e.initiative_id}">#${e.initiative_id}</a> ` : ""}${feedText(e.message || "")}</span></li>`;
+  }).join("") || `<li class="empty">No activity yet.</li>`;
 }
 
 async function loadTaste() {
@@ -450,6 +472,13 @@ document.addEventListener("change", async e => {
 document.addEventListener("keydown", e => { if(!$("#drawer").hidden) {if(e.key==="Escape") closeDrawer();else Navigation.trap(e,$(".drawer-panel"));} });
 $("#filter").addEventListener("input", () => S && renderPulse());
 $("#show-skip").addEventListener("change", () => S && renderPulse());
+(function pulseCols() {
+  const input = $("#pulse-cols"), out = $("#pulse-cols-out");
+  let v = 1; try { v = +(localStorage.getItem("pulse-cols") || 1); } catch (e) {}
+  const apply = n => { input.value = n; out.textContent = n; $("#pulse").style?.setProperty?.("--cols", n); };
+  apply(Math.min(4, Math.max(1, v || 1)));
+  input.addEventListener("input", () => { apply(+input.value); try { localStorage.setItem("pulse-cols", input.value); } catch (e) {} });
+})();
 
 (async () => {
   await refresh(true);
@@ -518,7 +547,7 @@ document.addEventListener('click',async e=>{
     if(collection.startsWith('pending.'))O.pending[collection.split('.')[1]].push(...page.pending[collection.split('.')[1]]);
     else O[collection].push(...page[collection]);
     O.pages[collection]=page.pages[collection];
-    button.blur();Overview.update($('#view-overview'),O,project);
+    button.blur();Overview.update($('main'),O,project);
   }catch(err){toast(err.message,true);button.disabled=false;}
 });
 

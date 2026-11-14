@@ -51,8 +51,9 @@
   }
   function rows(items) {
     if(!items.length) return '<p class="hint">None.</p>';
-    return '<div class="table-scroll"><table class="subtasks"><thead><tr><th>Work</th><th>Owner / status</th><th>Age / eligibility</th><th>Progress / ETA</th></tr></thead><tbody>'+items.map(i=>
-      '<tr><td><a href="'+esc(i.href)+'">#'+esc(i.initiative_id)+(i.subtask_id?' / '+esc(i.subtask_id):'')+' '+esc(i.title)+'</a><div class="hint"><a href="#/project/'+encodeURIComponent(i.project)+'">'+esc(i.project)+'</a></div></td><td>'+esc(owner(i.owner))+'<div class="hint">'+[...new Set([i.stage,i.status].filter(Boolean))].map(v=>esc(plain(v))).join(' · ')+' · '+esc(plain(i.owner_basis))+'</div></td><td>'+Math.floor((i.age_seconds||0)/60)+' min<div class="hint">'+esc(plain(i.age_basis))+' · '+esc(plain(i.eligibility))+'</div></td><td>'+esc(i.progress?.done??0)+'/'+esc(i.progress?.total??0)+' subtasks<div class="estimate">'+eta(i.estimate)+'</div></td></tr>').join('')+'</tbody></table></div>';
+    const age=s=>{const m=Math.floor((s||0)/60);return m<60?m+' min':Math.floor(m/60)+' hr '+(m%60)+' min';};
+    return '<table class="worktable"><thead><tr><th>Work</th><th>Stage</th><th>Owner</th><th>Age</th><th>Progress</th><th>ETA</th></tr></thead><tbody>'+items.map(i=>
+      '<tr><td><a href="'+esc(i.href)+'">#'+esc(i.initiative_id)+(i.subtask_id?' / '+esc(i.subtask_id):'')+' '+esc(i.title)+'</a> <span class="ms-proj">'+esc(i.project)+'</span></td><td>'+esc(STAGE[i.stage]||plain(i.stage))+'</td><td title="'+esc(plain(i.owner_basis))+'">'+esc(owner(i.owner))+'</td><td title="'+esc(plain(i.age_basis)+' · '+plain(i.eligibility))+'">'+age(i.age_seconds)+'</td><td>'+(i.progress?.total?esc(i.progress.done)+'/'+esc(i.progress.total):'—')+'</td><td class="estimate">'+eta(i.estimate)+'</td></tr>').join('')+'</tbody></table>';
   }
   function summary(t) {
     return '<div class="rollup-totals">'+[['Open initiatives','open_initiatives'],['In flight','in_flight'],['Waiting on you','waiting_on_producer'],['Blocked','blocked'],['Queued subtasks','queued_subtasks']].map(([label,key])=>'<div><strong>'+esc(t?.[key]??0)+'</strong><span>'+label+'</span></div>').join('')+'</div>';
@@ -61,7 +62,7 @@
     const all=(data.rollups?.projects||[]).filter(p=>!project||p.project===project);
     const projects=all.filter(p=>project||p.subtasks_total||Object.keys(p.stages||{}).length),idle=all.filter(p=>!projects.includes(p));
     const totals=project?projects[0]:data.rollups?.totals;
-    return summary(totals)+'<details data-key="project-rollups" open><summary>Project rollups</summary><div class="table-scroll"><table class="subtasks"><thead><tr><th>Project / stages</th><th>Subtasks</th><th>In flight / waiting</th><th>Rollup ETA (next checkpoints)</th></tr></thead><tbody>'+projects.map(p=>'<tr><td><a href="#/project/'+encodeURIComponent(p.project)+'">'+esc(p.project)+'</a><p class="hint">'+Object.entries(p.stages||{}).map(([s,n])=>esc(plain(s))+': '+esc(n)).join(' · ')+'</p></td><td>'+esc(p.subtasks_done)+'/'+esc(p.subtasks_total)+'</td><td>'+esc(p.in_flight)+' in flight / '+esc(p.waiting_on_producer)+' waiting on you</td><td>'+preview('project',p.project,p.estimate)+'</td></tr>').join('')+'</tbody></table></div>'+(idle.length?'<p class="hint">No open initiatives: '+idle.map(p=>'<a href="#/project/'+encodeURIComponent(p.project)+'">'+esc(p.project)+'</a>').join(', ')+'</p>':'')+'</details>';
+    return (project?summary(totals):'')+'<details data-key="project-rollups" open><summary>Projects</summary><div class="table-scroll"><table class="subtasks"><thead><tr><th>Project / stages</th><th>Subtasks</th><th>In flight / waiting</th><th>Rollup ETA (next checkpoints)</th></tr></thead><tbody>'+projects.map(p=>'<tr><td><a href="#/project/'+encodeURIComponent(p.project)+'">'+esc(p.project)+'</a><p class="hint">'+Object.entries(p.stages||{}).map(([s,n])=>esc(plain(s))+': '+esc(n)).join(' · ')+'</p></td><td>'+esc(p.subtasks_done)+'/'+esc(p.subtasks_total)+'</td><td>'+esc(p.in_flight)+' in flight / '+esc(p.waiting_on_producer)+' waiting on you</td><td>'+preview('project',p.project,p.estimate)+'</td></tr>').join('')+'</tbody></table></div>'+(idle.length?'<p class="hint">No open initiatives: '+idle.map(p=>'<a href="#/project/'+encodeURIComponent(p.project)+'">'+esc(p.project)+'</a>').join(', ')+'</p>':'')+'</details>';
   }
   function timeline(data,project) {
     const events=(data.forecast?.timeline||[]).filter(e=>!project||e.project===project);
@@ -85,19 +86,47 @@
       +tile(pct(q('codex')),'Codex 5h left',quotaClass(q('codex')))
       +tile(pct(q('claude')),'Claude 5h left',quotaClass(q('claude')));
   }
+  const STAGE={spark:'pitch',hld_draft:'drafting HLD',hld_review:'HLD review',lld_draft:'drafting LLD',lld_review:'LLD review',building:'building',playtest:'playtest'};
+  function ago(iso){const m=Math.round((Date.now()-Date.parse(iso))/60000);return !Number.isFinite(m)?'':m<1?'just now':m<60?m+' min ago':Math.floor(m/60)+' hr '+(m%60)+' min ago';}
+  function detail(r) {
+    const p=r.progress||{},bits=[STAGE[r.stage]||plain(r.stage),r.project];
+    if(r.subtask_id) bits.push('subtask '+r.subtask_id+(p.total?' of '+p.total:''));
+    else if(p.total) bits.push(p.done+'/'+p.total+' subtasks done');
+    if(r.stage_entered_at) bits.push('in this stage since '+clock(r.stage_entered_at));
+    if(r.last_activity_at) bits.push('last activity '+ago(r.last_activity_at));
+    return bits.filter(Boolean).join(' · ');
+  }
   function nextFor(data,actor){return (data.forecast?.timeline||[]).find(e=>e.actor===actor);}
   const clock=iso=>local(iso).replace(/ \(.*\)$/,'');
+  function waitingOn(data,label) {
+    const all=[...(data.in_flight||[]),...Object.values(data.pending||{}).flat()],seen=new Set(),out=[];
+    for(const r of all){const why=(r.estimate?.reason||'')+' '+(r.estimate?.if_approved_now?.reason||'');
+      if(why.includes('needs '+label)&&!seen.has(r.initiative_id)){seen.add(r.initiative_id);out.push(r);}}
+    return out;
+  }
   function now(data) {
     return '<h2>Agents now</h2><ul class="now-list">'+(data.lanes||[]).map(l=>{
-      const paused=l.scheduler?.state==='paused',next=nextFor(data,l.key);
-      let text,cls;
-      if(l.key==='chat'){const c=(l.claims||[]).map(c=>'#'+c.initiative_id+' '+c.title);text=c.length?'working with you on '+c.join(', '):'no chat claims';cls=c.length?'busy':'idle';}
-      else if(l.activity?.task_ref){text='working on '+l.activity.task_ref+(l.activity.started_at?' since '+clock(l.activity.started_at):'');cls='busy';}
-      else if(paused){text='paused: dispatch from chat or resume its lane';cls='paused';}
-      else if(next){text='next: '+describe(next)+', '+until(next.start_at);cls='idle';}
-      else {text='idle: nothing in its lane right now';cls='idle';}
-      return '<li class="now-'+cls+'"><span class="pip"></span><b>'+esc(WHO[l.key]||l.label)+'</b><span>'+esc(text)+'</span></li>';
-    }).join('')+'</ul>';
+      const paused=l.scheduler?.state==='paused',next=nextFor(data,l.key),name=WHO[l.key]||l.label;
+      let text,cls,href='',extra='';
+      if(l.key==='chat'){
+        const c=l.claims||[];cls=c.length?'busy':'idle';
+        text=c.length?'working with you on '+c.map(c=>'#'+c.initiative_id+' '+c.title+(c.note?' ('+c.note+')':'')).join('; '):'idle';
+        href=c[0]?.href||'';
+      } else if(l.activity?.task_ref){
+        const row=(data.in_flight||[]).find(r=>owner(r.owner)===owner(l.key));
+        text='working on '+l.activity.task_ref+(l.activity.started_at?' since '+clock(l.activity.started_at):'')+(row?' · '+detail(row):'');
+        cls='busy';href=row?.href||'';
+        if(paused) extra=' (scheduled runs off after this one)';
+      } else if(paused){
+        const waiting=waitingOn(data,name);cls='paused';
+        if(l.key==='gemini') text='not scheduled: you run Gemini yourself in Antigravity';
+        else if(waiting.length){text='scheduled runs off · '+waiting.length+' item(s) need '+name+': ask me in chat to run it';href=waiting[0].href;}
+        else text='scheduled runs off · nothing needs it right now';
+      } else if(next){text='next: '+describe(next)+', '+until(next.start_at);cls='idle';href=next.href;}
+      else {text='idle';cls='idle';}
+      const body=esc(text+extra);
+      return '<li class="now-'+cls+'"><span class="pip"></span><b>'+esc(name)+'</b>'+(href?'<a class="now-link" href="'+esc(href)+'">'+body+'</a>':'<span>'+body+'</span>')+'</li>';
+    }).join('')+'</ul><p class="hint">Scheduled runs are each agent\'s automatic timer. Claude\'s is off on purpose: I run it on demand from chat. Toggle timers on the <a href="#/tab/work">Work tab</a>.</p>';
   }
   function upcoming(data) {
     const events=(data.forecast?.timeline||[]).slice(1,5);
@@ -124,10 +153,12 @@
     const rows=milestoneRows(data),soon=rows.find(r=>r.estimate?.completion_at);
     const headline=soon?'<p class="headline">Next to land: <a href="'+esc(soon.href)+'">'+esc(soon.title)+'</a>, '+esc(until(soon.estimate.completion_at))+'.</p>'
       :'<p class="headline">Nothing lands without you right now: '+rows.filter(r=>landing(r).cls==='you').length+' item(s) wait on your review.</p>';
-    return '<h2>Milestones</h2>'+headline+'<ul class="milestones">'+rows.map(r=>{const l=landing(r),p=r.progress||{};
-      return '<li class="ms-'+l.cls+'"><a href="'+esc(r.href)+'">#'+esc(r.initiative_id)+' '+esc(r.title)+'</a><span class="ms-proj">'+esc(r.project)+'</span>'
+    const groups=new Map();for(const r of rows){if(!groups.has(r.project))groups.set(r.project,[]);groups.get(r.project).push(r);}
+    const ordered=[...groups.entries()].sort((a,b)=>{const t=g=>Math.min(...g.map(r=>r.estimate?.completion_at?Date.parse(r.estimate.completion_at):Infinity));return t(a[1])-t(b[1])||a[0].localeCompare(b[0]);});
+    return '<h2>Milestones</h2>'+headline+'<ul class="milestones">'+ordered.map(([proj,list])=>'<li class="ms-group"><a href="#/project/'+encodeURIComponent(proj)+'">'+esc(proj)+'</a><span class="hint">'+list.length+' open</span></li>'+list.map(r=>{const l=landing(r),p=r.progress||{};
+      return '<li class="ms-'+l.cls+'"><a href="'+esc(r.href)+'">#'+esc(r.initiative_id)+' '+esc(r.title)+'</a>'
         +(p.total?'<span class="ms-bar" title="'+esc(p.done+'/'+p.total)+' subtasks"><i style="width:'+Math.round(100*p.done/p.total)+'%"></i></span>':'<span class="ms-bar empty"></span>')
-        +'<span class="ms-when">'+esc(l.text)+'</span></li>';}).join('')+'</ul>';
+        +'<span class="ms-when">'+esc(l.text)+'</span></li>';}).join('')).join('')+'</ul>';
   }
   function quotabar(data) {
     const rows=(data.lanes||[]).filter(l=>l.quota?.windows&&Object.keys(l.quota.windows).length).map(l=>{
@@ -142,9 +173,16 @@
     const filter=items=>items.filter(i=>!project||i.project===project);
     const total=(key,fallback)=>data.pages?.[key]?.total??fallback;
     const more=key=>data.pages?.[key]?.next_cursor!=null?'<button class="btn" data-more="'+esc(key)+'" data-offset="'+data.pages[key].next_cursor+'">Load more ('+data.pages[key].total+' total)</button>':'';
-    const lanes=(data.lanes||[]).map(l=>'<article class="lane"><h2>'+esc(l.label)+'</h2><strong>'+esc(plain(l.activity?.state||'unknown'))+'</strong><p>Quota: '+esc(plain(l.quota?.state||'unknown'))+'</p><p>'+esc(l.activity?.task_ref||plain(l.activity?.basis)||'Task not identified')+(l.activity?.started_at?' · since '+esc(local(l.activity.started_at)):'')+'</p><p>Future runs: '+esc(plain(l.scheduler?.state||'unknown'))+' · next '+esc(local(l.scheduler?.next_run_at))+'</p><p class="estimate">'+eta(l.estimate)+'</p>'+(l.reason?'<p class="warning">'+esc(plain(l.reason))+'</p>':'')+(l.residency?'<p>Local models: '+esc(l.residency.value??'unknown')+' resident (not proof of generation)</p>':'')+(l.claims||[]).map(c=>'<p><a href="'+esc(c.href)+'">#'+esc(c.initiative_id)+' '+esc(c.title)+'</a> · '+esc(c.owner)+'</p>').join('')+(l.focus||[]).map(f=>'<p><a href="'+esc(f.href)+'">'+esc(f.project)+'</a> · focus '+esc(f.owner)+'</p>').join('')+(l.jobs||[]).map(j=>'<div class="job"><span>'+esc(j.declaration)+'</span><p>'+eta(j.estimate)+'</p><button class="btn" data-lane="'+esc(j.declaration)+'" data-enabled="'+(!j.enabled)+'" data-generation="'+esc(j.generation)+'" '+(!j.controllable?'disabled':'')+'>'+(j.enabled?'Pause':'Resume')+' future runs</button></div>').join('')+'</article>').join('');
+    const lanes=(data.lanes||[]).map(l=>{const paused=l.scheduler?.state==='paused';
+      return '<article class="lane'+(paused?' paused':'')+'"><header><b>'+esc(l.label)+'</b><span class="lane-state">'+esc(plain(l.activity?.state||'unknown'))+(paused?' · scheduled runs paused':'')+'</span></header>'
+      +(l.activity?.task_ref?'<p>Working on '+esc(l.activity.task_ref)+'</p>':'')
+      +(l.scheduler?.next_run_at?'<p>Next run '+esc(until(l.scheduler.next_run_at))+'</p>':'')
+      +(l.reason?'<p class="warning">'+esc(plain(l.reason))+'</p>':'')
+      +(l.claims||[]).map(c=>'<p><a href="'+esc(c.href)+'">#'+esc(c.initiative_id)+' '+esc(c.title)+'</a></p>').join('')
+      +(l.focus||[]).map(f=>'<p><a href="'+esc(f.href)+'">'+esc(f.project)+'</a> · focus</p>').join('')
+      +(l.jobs||[]).map(j=>'<div class="job"><span>'+esc(j.declaration.replace(/^orch:/,''))+'</span><button class="btn sm" data-lane="'+esc(j.declaration)+'" data-enabled="'+(!j.enabled)+'" data-generation="'+esc(j.generation)+'" title="Affects future runs only" '+(!j.controllable?'disabled':'')+'>'+(j.enabled?'Turn timer off':'Turn timer on')+'</button></div>').join('')+'</article>';}).join('');
     const inFlight=filter(data.in_flight||[]);
-    const pending=Object.entries(data.pending||{}).map(([name,items])=>'<details data-key="pending-'+esc(name)+'" open><summary>'+esc(plain(name))+' ('+total('pending.'+name,filter(items).length)+')</summary>'+rows(filter(items))+more('pending.'+name)+'</details>').join('');
+    const pending=Object.entries(data.pending||{}).map(([name,items])=>'<details data-key="pending-'+esc(name)+'"'+(['producer','queued'].includes(name)?' open':'')+'><summary>'+esc(plain(name))+' ('+total('pending.'+name,filter(items).length)+')</summary>'+rows(filter(items))+more('pending.'+name)+'</details>').join('');
     const quotas=(data.lanes||[]).map(l=>Object.entries(l.quota?.windows||{}).map(([w,m])=>'<article class="pace"><b>'+esc(l.label)+' · '+esc(w)+'</b><p>'+esc(m.value??'not recorded')+'% remaining · '+esc(plain(m.status))+'</p><p>'+esc(m.pace)+' · even-burn target used '+(m.target_used==null?'not available':m.target_used.toFixed(1)+'%')+'</p><p>Actual used '+(m.actual_used==null?'not available':m.actual_used.toFixed(1)+'%')+' · difference '+(m.delta_pp==null?'not available':m.delta_pp.toFixed(1)+'pp')+'</p><p class="hint">'+esc(plain(m.baseline||m.reason||'pace unavailable'))+' · reset '+esc(local(m.meta?.resets_at))+' · observed '+esc(local(m.observed_at))+'</p>'+(m.hint?'<p class="warning">'+esc(m.hint)+'</p>':'')+'</article>').join('')).join('');
     const attention=(data.attention||[]).map(a=>'<li><a href="'+esc(a.href)+'">'+esc(a.title)+'</a> · '+esc(plain(a.reason))+'</li>').join('')||'<li>None.</li>';
     return {kpis:kpis(data),now:now(data),needs:needs(data),milestones:milestones(data),quotabar:quotabar(data),stamp:'Updated '+esc(local(data.generated_at)),rollups:rollups(data,project),timeline:timeline(data,project),lanes,next:'<h2>Next expected update</h2>'+nextUpdate(data.next_update)+upcoming(data)+'<p class="hint">Next scheduled agent run: '+esc(local(data.next_update?.next_check_at))+'</p>',flight:'<h2>In flight ('+total('in_flight',inFlight.length)+' rows)</h2>'+rows(inFlight)+more('in_flight'),pending,quotas:quotas||'<p>Quota pace unavailable. Gemini has no measured quota; Gemma is local.</p>',attention:'<ul>'+attention+'</ul>',suggestions:rows(filter(data.suggestions||[]))+more('suggestions')};
@@ -158,6 +196,6 @@
       for(const d of element.querySelectorAll('details[data-key]')) if(open.has(d.dataset.key)) d.open=open.get(d.dataset.key);
     }
   }
-  const exports={esc,plain,owner,local,eta,rows,regions,update,preview,comparison,summary,setComparison,until,describe,milestoneRows,landing};
+  const exports={esc,plain,owner,local,eta,rows,regions,update,preview,comparison,summary,setComparison,until,describe,milestoneRows,landing,detail};
   if(typeof module!=='undefined') module.exports=exports;else root.Overview=exports;
 })(typeof window!=='undefined'?window:globalThis);

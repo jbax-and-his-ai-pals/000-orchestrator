@@ -39,7 +39,7 @@ class ForecastTests(unittest.TestCase):
     def test_paused(self):
         result=run(lanes=[lane(enabled=False)])
         self.assertEqual(result['timeline'],[])
-        self.assertIn('dispatch from chat or resume its lane',result['initiatives']['1']['reason'])
+        self.assertIn('ask in chat to run it',result['initiatives']['1']['reason'])
     def test_spotlight_claim_and_focus(self):
         result=run(spot={'project':'other'})
         self.assertEqual(result['initiatives']['1']['reason'],'blocked by spotlight on other')

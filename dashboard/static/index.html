@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Portfolio Orchestrator</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261113c">
+  <link rel="stylesheet" href="/static/style.css?v=20261113e">
 </head>
 <body>
   <header class="top">
@@ -39,12 +39,18 @@
     </section>
     <section id="view-work" class="view" aria-label="Work">
       <div class="toolbar"><h1>Work</h1><label>Project <select id="overview-filter"><option value="">All projects</option></select></label></div>
-      <section data-region="rollups" aria-label="Project rollups"></section>
-      <section data-region="timeline" aria-label="Next hours"></section>
-      <h2>Agent lanes</h2>
-      <div data-region="lanes" class="lane-grid"></div>
-      <section data-region="flight"></section><h2>Pending work</h2><div data-region="pending"></div>
-      <h2>Attention needed</h2><div data-region="attention"></div><h2>Quota pace</h2><div data-region="quotas" class="pace-grid"></div>
+      <div class="work-grid">
+        <div class="work-col">
+          <section class="card-panel" data-region="rollups" aria-label="Projects"></section>
+          <section class="card-panel"><div data-region="flight"></div><h2>Pending</h2><div data-region="pending"></div></section>
+        </div>
+        <div class="work-col">
+          <section class="card-panel" data-region="timeline" aria-label="Next hours"></section>
+          <section class="card-panel"><h2>Agent lanes</h2><div data-region="lanes" class="lane-grid"></div></section>
+          <section class="card-panel"><h2>Attention needed</h2><div data-region="attention"></div></section>
+          <section class="card-panel"><h2>Quota pace</h2><div data-region="quotas" class="pace-grid"></div></section>
+        </div>
+      </div>
     </section>
     <section id="view-ideas" class="view" aria-label="Ideas">
       <div class="toolbar"><h1>Ideas</h1></div>
@@ -99,9 +105,9 @@
   </div>
 
   <div id="toast" class="toast" hidden></div>
-  <script src="/static/overview.js?v=20261113c"></script>
-  <script src="/static/navigation.js?v=20261113c"></script>
-  <script src="/static/app.js?v=20261113c"></script>
-  <script src="/static/utilization.js?v=20261113c"></script>
+  <script src="/static/overview.js?v=20261113e"></script>
+  <script src="/static/navigation.js?v=20261113e"></script>
+  <script src="/static/app.js?v=20261113e"></script>
+  <script src="/static/utilization.js?v=20261113e"></script>
 </body>
 </html>

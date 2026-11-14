@@ -105,7 +105,7 @@ def simulate(inits, projects, lanes, samples, now, dispatch, spot=None, due=None
         actor=lane['key']
         if actor not in ('gemma','codex','claude'): continue
         reason=None
-        if lane.get('scheduler',{}).get('state')=='paused': reason='needs '+lane.get('label',actor.title())+': dispatch from chat or resume its lane'
+        if lane.get('scheduler',{}).get('state')=='paused': reason='needs '+lane.get('label',actor.title())+': ask in chat to run it (scheduled runs off)'
         elif lane.get('reason'): reason='schedule observation unavailable or stale'
         elif lane.get('quota',{}).get('state')=='exhausted': reason='quota exhausted; resume time not observed'
         lane_reasons[actor]=reason

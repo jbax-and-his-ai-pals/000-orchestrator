@@ -260,11 +260,11 @@ def snapshot(orch,clock=None,bump=None):
     for lane in lanes:
         upcoming=[e for e in model['timeline'] if e['actor']==lane['key']]
         if upcoming: lane['estimate']=min(upcoming,key=lambda e:e['completion_at'])
-        elif lane['scheduler']['state']=='paused': lane['estimate']={'state':'blocked','reason':'paused: dispatch from chat or resume its lane'}
+        elif lane['scheduler']['state']=='paused': lane['estimate']={'state':'blocked','reason':'scheduled runs off'}
         for job in lane['jobs']:
             choices=[e for e in upcoming if e['work_type']!='hld' or (by_id_complexity(inits,e['initiative_id'])=='high')==job['declaration'].endswith('-opus')]
             if choices: job['estimate']=choices[0]
-            elif not job['enabled']: job['estimate']={'state':'blocked','reason':'paused: dispatch from chat or resume its lane'}
+            elif not job['enabled']: job['estimate']={'state':'blocked','reason':'scheduled runs off'}
     all_rows=rows+[r for group in pending.values() for r in group]
     progress={i['id']:json.loads(i['execution_plan_json'] or '{}').get('subtasks',[]) for i in inits}
     for row in all_rows:
@@ -277,7 +277,7 @@ def snapshot(orch,clock=None,bump=None):
         changed=forecast.cached(inits,projects,lanes,samples,now,orch.queue_from_snapshot,spot,due_by_actor,
             [i['id'] for i in inits if orch.finishing(spot,i['id'])],bump)
         comparison=forecast.compare(model,changed,bump[0],bump[1])
-    claims=[{'initiative_id':i['id'],'title':i['title'],'owner':i['claimed_by'],'href':'#/initiative/'+str(i['id'])} for i in inits if i.get('claimed_by') and date(i.get('claim_expires_at')) and date(i['claim_expires_at'])>now]
+    claims=[{'initiative_id':i['id'],'title':i['title'],'owner':i['claimed_by'],'note':i.get('claim_note'),'href':'#/initiative/'+str(i['id'])} for i in inits if i.get('claimed_by') and date(i.get('claim_expires_at')) and date(i['claim_expires_at'])>now]
     focus=[{'project':p['repo_name'],'owner':p['focus_by'],'href':'#/project/'+quote(p['repo_name'],safe='')} for p in projects if p.get('focus_by') and date(p.get('focus_until')) and date(p['focus_until'])>now]
     lanes.append({'key':'chat','label':'Chat','jobs':[],'activity':{'state':'claimed/in chat' if claims or focus else 'no claims','basis':'ownership, not process'},'claims':claims,'focus':focus,'scheduler':{'state':'none','next_run_at':None},'quota':{'state':'unknown'},'estimate':{'state':'unknown','reason':'chat has no schedule'}})
     estimates=[l['estimate'] for l in lanes if l['estimate'].get('completion_at')]

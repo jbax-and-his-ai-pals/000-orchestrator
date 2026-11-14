@@ -204,7 +204,7 @@ function feedText(msg) {
 function renderActivity() {
   if (O) {
     const active = (O.in_flight || []);
-    $("#act-active").innerHTML = active.length ? `<ul class="act-list">${active.map(r => `<li><a href="${esc(r.href)}">#${esc(r.initiative_id)}${r.subtask_id ? " / " + esc(r.subtask_id) : ""} ${esc(r.title)}</a><span class="actor-chip ${ACTOR_CLS(r.owner || "")}">${esc(r.owner || "unknown")}</span><span class="act-eta">${Overview.eta(r.estimate)}</span></li>`).join("")}</ul>`
+    $("#act-active").innerHTML = active.length ? `<ul class="act-list">${active.map(r => `<li><a href="${esc(r.href)}">#${esc(r.initiative_id)}${r.subtask_id ? " / " + esc(r.subtask_id) : ""} ${esc(r.title)}</a><span class="actor-chip ${ACTOR_CLS(r.owner || "")}">${esc(r.owner || "unknown")}</span><span class="act-detail">${esc(Overview.detail(r))}</span><span class="act-eta">${Overview.eta(r.estimate)}</span></li>`).join("")}</ul>`
       : `<p class="hint">Nothing is running right now.</p>`;
     const next = (O.forecast?.timeline || []).slice(0, 6);
     $("#act-upcoming").innerHTML = next.length ? `<ul class="act-list">${next.map(e => `<li><a href="${esc(e.href)}">${esc(Overview.describe(e))}</a><span class="act-eta">${esc(Overview.until(e.start_at))} · takes ${esc(e.basis_label || "unknown")}</span></li>`).join("")}</ul>`
@@ -498,7 +498,7 @@ $("#idea-form").onsubmit=async e=>{
 document.addEventListener('click',async e=>{
   const lane=e.target.closest('[data-lane]'),order=e.target.closest('[data-reorder]');
   const button=lane||order;if(!button||button.disabled)return;
-  if(lane && !confirm((lane.dataset.enabled==='true'?'Resume':'Pause')+' '+lane.dataset.lane+'? Affects future runs only; current work is not cancelled.'))return;
+  if(lane && !confirm('Turn '+(lane.dataset.enabled==='true'?'on':'off')+' the automatic timer for '+lane.dataset.lane+'? Affects future scheduled runs only; current work is not cancelled.'))return;
   if(order && !confirm('Change pending order? This changes implicit prerequisites; completed and doing entries stay fixed.'))return;
   button.disabled=true;
   try {

@@ -61,7 +61,7 @@ _Last updated: 2026-11-13 21:40 PT_
 
 ## Waiting on the producer
 - Back seat (game work): #2 playtest, #4 HLD review, spark #3. Orchestrator sparks: #9 (chat inside the orchestrator), #10 (seeding), #11 (Gemma stabs).
-- Tailscale: the producer enables Serve in the admin console, then run `tailscale serve --bg 8420`.
+- (done 22:07) Tailscale Serve: dashboard at https://cpu.tail369b7c.ts.net (tailnet only). Off: `tailscale serve --https=443 off`.
 
 ## Quirks
 - The OpenClaw gateway crashed once on 2026-11-13; both agents and crons stop when it does. Check with

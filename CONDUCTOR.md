@@ -17,8 +17,12 @@ _Last updated: 2026-11-13 20:45 PT_
   Claude on 000-orchestrator. If the chat that started it closed, check the logs; the script dies with its session.
   Then: spot-check the judged dossiers, check `ORCH issues`, and ask the producer about `issues-autosolve on`.
   Gemma backlog (11 docs tasks, 6 ready) is in `designs/0011-*/GEMMA_BACKLOG.md` for spark #11.
-- **Bottleneck issues** merged 21:05 (aaa6cb4): 19 open on the Triage Board; the orchestrator's is dismissed. Autosolve
-  is OFF until the producer says on (suggested after the judgment pass). Known gap: issue work isn't in forecast/Agents Now.
+- **Bottleneck issues** merged 21:05 (aaa6cb4); the orchestrator's issue is dismissed. Autosolve is ON (producer,
+  21:15). `logs/solve_tonight.sh` runs in the background: after the Claude judgment waves, Claude solves 002, 005,
+  014, 017, 019; after 000's dossier (~midnight), Codex solves 001, 003, 004, 006, then 007, 008, 012, 015, 018.
+  Waves are skipped if Codex is under 30%. 009, 010, 011, 013, 016 are left for the producer (playtest or
+  hardware). Logs: `logs/solve_issues.log`, `logs/solve-<lane>-<repo>.log`. Next chat: check the resulting sparks on
+  the Triage Board (`ORCH issues --status proposed`). Known gap: forecast doesn't show issue work.
 - Codex 5h at ~10% left at 20:35 (resets 23:44 PT): no Codex dispatches until then.
 
 ## Roadmap (producer, 2026-11-13)

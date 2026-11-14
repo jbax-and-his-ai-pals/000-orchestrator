@@ -15,6 +15,8 @@ const CATEGORY_LABEL = {
 let S = null;          // last /api/state payload
 let version = "";
 let O = null;
+let M = null;
+let modelSaveBusy = false;
 let refreshBusy = false;
 const detailSequence = Navigation.sequence();
 let returnFocus = null;
@@ -66,6 +68,7 @@ async function refresh(force = false) {
     version = S.version;
     const oldOverview=O, filterValue=$("#overview-filter").value;
     O = await api("/api/overview?project="+encodeURIComponent(filterValue));
+    M = await api("/api/models");
     O.initiative_index = Object.fromEntries(S.initiatives.map(i => [i.id, {pitch: i.pitch_summary, revision: i.revision_note, category: i.category, complexity: i.complexity, branch: i.branch_name}]));
     O.priority_context = {
       spotlight: S.spotlight?.project || null,
@@ -112,6 +115,7 @@ function renderSpotlight() {
 
 function render() {
   renderSpotlight(); renderPulse(); renderBoard(); renderActivity();
+  if(!modelSaveBusy) ModelControls.update($("#model-controls"),M);
   if(O) Overview.update($("main"),O,$("#overview-filter").value);
   const waiting = S.initiatives.filter(i => AWAITING.has(i.stage)).length + openIssues().length;
   $("#review-count").textContent = waiting || "";
@@ -621,4 +625,42 @@ document.addEventListener('click',async event=>{
     if(button.isConnected)result.innerHTML=Overview.comparison(comparison);
   }catch(error){if(button.isConnected)result.textContent=error.message;}
   finally {if(button.isConnected)button.disabled=false;}
+});
+
+
+async function saveModelControl(element, power) {
+  if(modelSaveBusy) return;
+  const declaration=power?element.dataset.modelPower:element.dataset.modelTask;
+  const selector=power?'[data-model-power="'+declaration+'"]':'[data-model-task="'+declaration+'"][data-task="'+element.dataset.task+'"]';
+  modelSaveBusy=true;
+  $('#model-controls').querySelectorAll('button,input').forEach(e=>e.disabled=true);
+  try {
+    if(power) {
+      const fresh=await api('/api/models');
+      const observed=fresh.models.find(m=>m.declaration===declaration);
+      if(!observed?.controllable || observed.job.enabled === (element.dataset.enabled==='true')) {
+        throw new Error('Schedule changed while you were viewing it; status refreshed.');
+      }
+      await api('/api/lanes/'+encodeURIComponent(declaration)+'/control', {enabled:element.dataset.enabled==='true', expected_generation:observed.generation});
+    } else {
+      await api('/api/models/'+encodeURIComponent(declaration)+'/tasks', {tasks:{[element.dataset.task]:element.checked},expected_version:element.dataset.version});
+    }
+    toast(power?'Schedule updated':'Task permission saved');
+  } catch(err) {toast(err.message,true);}
+  finally {
+    try {M=await api('/api/models');} catch(err) {toast('Could not refresh model status: '+err.message,true);}
+    modelSaveBusy=false;
+    // Always replace from observed state, including failed or stale writes.
+    const container=$('#model-controls');container._html=null;
+    ModelControls.update(container,M,true);
+    container.querySelector(selector)?.focus();
+    await refresh(true);
+  }
+}
+$('#model-controls').addEventListener('click',e=>{
+  const power=e.target.closest('[data-model-power]');
+  if(power&&!power.disabled)saveModelControl(power,true);
+});
+$('#model-controls').addEventListener('change',e=>{
+  if(e.target.matches('[data-model-task]')&&!e.target.disabled)saveModelControl(e.target,false);
 });

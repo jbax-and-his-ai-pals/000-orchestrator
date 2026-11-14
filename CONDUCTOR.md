@@ -48,6 +48,10 @@ _Last updated: 2026-11-13 21:40 PT_
 - Milestone 3 groundwork: seeding gave every repo a deep dossier (see Running now). Spark #11 (Gemma stabs) filed.
 
 ## Producer decisions in force
+- **Current mode (2026-11-14, supersedes older schedule notes above):** Claude Sonnet/Opus and Codex timers OFF;
+  Gemini OFF. Producer uses Claude/Codex personally. Gemma timer ON every 30 minutes, passive maintenance only;
+  coding OFF. Issue autosolve OFF. Dashboard **Models** controls schedules and allowed task types independently.
+  Do not re-enable a model or task type just because work is queued.
 - Dispatch within the 5h windows; weekly is information only. Gemma should always have work.
 - Working mode: Codex for logic and volume; visual polish in chat ("if you'd judge it by looking, iterate here").
 - Non-orchestrator (game) work takes a back seat until the orchestrator milestones are done (producer, 2026-11-13).

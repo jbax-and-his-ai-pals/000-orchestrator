@@ -9,6 +9,7 @@ from urllib.parse import quote
 import forecast
 import lane_status
 import steering
+import task_policy
 import utilization as u
 
 ACTORS=u.LANES
@@ -161,6 +162,7 @@ def snapshot(orch,clock=None,bump=None):
         inits=orch.rows(con,"SELECT * FROM initiatives WHERE stage NOT IN ('done','rejected')")
         events=orch.rows(con,'SELECT * FROM events ORDER BY id DESC LIMIT 10001')
         observation=lane_status.read(con,now)
+        policies=task_policy.read(con)
         quotas={provider:{w:pace(u.current_metric(con,provider,'remaining_pct.'+w,now),w,now) for w in u.WINDOWS} for provider in ('openai','anthropic')}
         for windows in quotas.values():
             for metric in windows.values():
@@ -238,6 +240,9 @@ def snapshot(orch,clock=None,bump=None):
             if metric['status'] in ('stale','error'):
                 add_attention({'key':provider+':'+window,'href':'#/tab/utilization','title':provider+' '+window},'quota '+metric['status'])
     lanes=lane_status.lanes(observation,now)
+    for lane in lanes:
+        for job in lane["jobs"]:
+            job["task_permissions"] = policies[job["declaration"]]
     queues={}
     # The actual dispatch interface is authoritative for first candidate and handoff precedence.
     for key,agent in [('gemma','scout'),('codex','planner'),('claude','architect'),('claude-high','architect-high')]:
@@ -294,7 +299,7 @@ def snapshot(orch,clock=None,bump=None):
         if lane['quota']['state']=='exhausted': add_attention({'key':lane['key'],'title':lane['label']},'quota exhausted')
     with orch.db() as con:
         open_issues=orch.issues_to_solve(con,spot,orch.now())
-    dispatch=lambda *a,**k: orch.queue_from_snapshot(*a,**k,issues=open_issues)
+    dispatch=lambda *a,**k: orch.queue_from_snapshot(*a,**k,issues=open_issues,policies=policies)
     model=forecast.cached(inits,projects,lanes,samples,now,dispatch,spot,due_by_actor,
         [i['id'] for i in inits if orch.finishing(spot,i['id'])])
     for lane in lanes:

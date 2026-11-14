@@ -111,3 +111,15 @@ ideas, alter routing policy automatically or relax GEMMA_CAPABILITIES.md to save
 Deployment: after an approved orchestrator ship, the conductor regenerates workspaces with
 `python scripts/sync_playbooks.py --install` from the deployed checkout. Feature BUILD tests explicit
 source/destination roots only; never default-export stale live workspaces over canonical edits.
+
+
+## Producer model task controls
+
+Before doing work, use your normal ORCH queue command and obey its `task_permissions` object.
+For reviewer-gemini, use `ORCH queue reviewer` and deep-read only the returned `project`; stop if null.
+Only do enabled task types: `planning` covers HLD/LLD/plan work, `coding` covers implementation,
+`review` covers branch reviews/deep reads, `ideas` covers sparks, pitch revisions and optimization hunts,
+`issues` covers bottleneck investigations, and `passive` covers scans/smoke/dossier refreshes.
+Do not substitute an optimization hunt or pitch when its task permission is false.
+If nothing permitted is available, log and stop. Never change these settings yourself.
+These switches do not waive claims, focus sessions, dependencies, producer gates or the Gemma contract.

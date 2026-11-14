@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Portfolio Orchestrator</title>
-  <link rel="stylesheet" href="/static/style.css?v=20261113r">
+  <link rel="stylesheet" href="/static/style.css?v=20261114a">
 </head>
 <body>
   <header class="top">
@@ -14,6 +14,7 @@
       <button class="tab" data-view="pulse">Portfolio Pulse</button>
       <button class="tab" data-view="attention">Attention <span class="count" id="attention-count"></span></button>
       <button class="tab" data-view="work">Work</button>
+      <button class="tab" data-view="models">Models</button>
       <button class="tab" data-view="triage">Triage Board <span class="count" id="review-count"></span></button>
       <button class="tab" data-view="activity">Activity</button>
       <button class="tab" data-view="utilization">Utilization</button>
@@ -27,7 +28,7 @@
   <main>
     <div class="prio-strip" data-region="prioStrip" aria-label="Prioritized work"></div>
     <section id="view-overview" class="view active" aria-label="Overview">
-      <div class="ov-head"><h1>How are we doing?</h1><span class="hint" data-region="stamp"></span></div>
+      <div class="ov-head"><h1>How are we doing?</h1><span class="hint" data-region="stamp"></span><a class="btn sm" href="#/tab/models">Manage models</a></div>
       <div class="kpis" data-region="kpis"></div>
       <div class="ov-grid">
         <section class="card-panel" data-region="now"></section>
@@ -44,6 +45,12 @@
       <section class="card-panel hero-panel" data-region="workActive"></section>
       <section class="card-panel" data-region="workNext"></section>
       <details class="card-panel" data-key="work-lanes"><summary>Agent lanes and timers</summary><div data-region="lanes" class="lane-grid"></div></details>
+    </section>
+    <section id="view-models" class="view" aria-label="Models">
+      <div class="toolbar"><h1>Models</h1><span class="hint">Choose who runs in the background and what they may do.</span></div>
+      <p class="model-explainer">Enable a model to run on its existing schedule. Task switches apply to the next task pickup; current work is not cancelled. Your personal chat sessions remain available with every model off.</p>
+      <div id="model-controls" aria-live="polite"></div>
+      <p class="hint">Planning follows the existing roles: Claude drafts HLDs, Codex writes LLDs and execution plans. Coding uses current subtask assignments. Producer approval gates, claims, focus sessions and Gemma limits still apply. Issue investigation also requires the issue autosolve switch on the Triage Board.</p>
     </section>
     <section id="view-attention" class="view" aria-label="Attention">
       <div class="toolbar"><h1>Attention</h1><span class="hint">Everything waiting on you: prioritized work first, then oldest.</span></div>
@@ -104,8 +111,9 @@
 
   <div id="toast" class="toast" hidden></div>
   <script src="/static/overview.js?v=20261113t"></script>
-  <script src="/static/navigation.js?v=20261113n"></script>
-  <script src="/static/app.js?v=20261113u"></script>
-  <script src="/static/utilization.js?v=20261113n"></script>
+  <script src="/static/navigation.js?v=20261114a"></script>
+  <script src="/static/models.js?v=20261114a"></script>
+  <script src="/static/app.js?v=20261114a"></script>
+  <script src="/static/utilization.js?v=20261114a"></script>
 </body>
 </html>

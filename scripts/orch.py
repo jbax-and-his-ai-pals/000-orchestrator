@@ -9,6 +9,7 @@ orchestrator.db, so the main-branch guard and the taste-profile log live here.
 from __future__ import annotations
 
 import steering
+import task_policy
 import uuid
 import argparse
 import contextlib
@@ -513,7 +514,10 @@ def detect_tests(repo: Path, files: list[str]) -> list[str]:
     return cmds[:6]
 
 
-def scan_project(name: str) -> dict:
+def scan_project(name: str, actor: str = "cli") -> dict:
+    check_focus(name, actor)
+    if actor in SCOUT_ACTORS:
+        task_policy.require(sys.modules[__name__], actor, 'passive')
     with db() as con:
         proj = get_project(con, name)
     repo = Path(proj["local_path"])
@@ -576,6 +580,8 @@ def smoke(name: str, actor: str = "scout") -> dict:
     with db() as con:
         proj = get_project(con, name)
     check_focus(name, actor)
+    if actor in SCOUT_ACTORS:
+        task_policy.require(sys.modules[__name__], actor, 'passive')
     check_spotlight(name, actor, scout_fallback=True)
     if not proj["is_git"]:
         return {"repo": name, "ran": False, "reason": "not a git repo"}
@@ -643,6 +649,8 @@ def write_dossier(name: str, text: str, actor: str, fields: dict | None = None) 
     with db() as con:
         get_project(con, name)
     check_focus(name, actor)
+    if actor in SCOUT_ACTORS:
+        task_policy.require(sys.modules[__name__], actor, 'passive')
     check_spotlight(name, actor, scout_fallback=True)
     if actor in SCOUT_ACTORS:
         missing = [h for h in GEMMA["dossier_headings"] if h.lower() not in text.lower()]
@@ -775,6 +783,7 @@ def issues_to_solve(con, spot: dict | None, clock: str) -> list[dict]:
 
 
 def issue_claim(issue_id: int, actor: str) -> dict:
+    task_policy.require(sys.modules[__name__], actor, 'issues')
     with db(write=True) as con:
         i = get_issue(con, issue_id)
         check_focus(i["project_name"], actor)
@@ -790,11 +799,12 @@ def issue_claim(issue_id: int, actor: str) -> dict:
 
 def issue_propose(issue_id: int, category: str, title: str, pitch: str, actor: str,
                   complexity: str | None = None) -> dict:
+    task_policy.require(sys.modules[__name__], actor, 'issues')
     with db() as con:
         i = get_issue(con, issue_id)
     if i["status"] != "investigating":
         raise OrchError(f"issue #{issue_id} is {i['status']}: run issue-claim first")
-    spark = add_spark(i["project_name"], category, title,
+    spark = _add_spark(i["project_name"], category, title,
                       f"Proposed fix for issue #{issue_id} (bottleneck: {i['title']})\n\n{pitch}", actor, complexity)
     with db(write=True) as con:
         con.execute("UPDATE issues SET status='proposed', spark_id=?, owner=NULL, note=?, updated_at=? WHERE id=?",
@@ -853,6 +863,12 @@ def design_dir(init: dict) -> Path:
 
 def add_spark(project: str, category: str, title: str, pitch: str, actor: str,
               complexity: str | None = None, idempotency: str | None = None) -> dict:
+    task_policy.require(sys.modules[__name__], actor, 'ideas')
+    return _add_spark(project, category, title, pitch, actor, complexity, idempotency)
+
+
+def _add_spark(project: str, category: str, title: str, pitch: str, actor: str,
+               complexity: str | None = None, idempotency: str | None = None) -> dict:
     if category not in CATEGORIES:
         raise OrchError(f"category must be one of {CATEGORIES}")
     check_focus(project, actor)
@@ -1259,6 +1275,7 @@ def attach(iid: int, kind: str, src_text: str, actor: str, model: str | None = N
     """Attach an HLD, LLD, or execution plan and move the card to its review gate."""
     with db(write=True) as con:
         init = get_initiative(con, iid)
+        task_policy.require(sys.modules[__name__], actor, 'planning', high=kind == 'hld' and init['complexity'] == 'high')
         check_claim(init, actor)
         d = design_dir(init)
         if kind == "hld":
@@ -1417,6 +1434,8 @@ def subtask_update(iid: int, sub_id: int, status: str, note: str, actor: str) ->
                 if status == "done" and actor in SCOUT_ACTORS and not s.get("verify_ok"):
                     raise OrchError(f"run `orch.py verify {iid} {sub_id}` and get a pass before marking done")
                 previous = s.get("status")
+                if status in ("doing", "done") and previous != "doing":
+                    task_policy.require(sys.modules[__name__], actor, 'coding')
                 if status == "doing" and previous != "doing":
                     s["run_attempt"] = uuid.uuid4().hex
                 details = {"v":1,"work_type":"build","stage":"building","subtask_id":sub_id,
@@ -1441,6 +1460,7 @@ def subtask_update(iid: int, sub_id: int, status: str, note: str, actor: str) ->
 
 def review_build(iid: int, verdict: str, note: str, actor: str) -> dict:
     """Planner's code review of a feat branch. pass -> playtest; fail -> stays in building with notes."""
+    task_policy.require(sys.modules[__name__], actor, 'review')
     if verdict not in ("pass", "fail"):
         raise OrchError("verdict must be pass|fail")
     with db(write=True) as con:
@@ -1456,6 +1476,10 @@ def review_build(iid: int, verdict: str, note: str, actor: str) -> dict:
         con.execute("UPDATE initiatives SET revision_note=?, updated_at=? WHERE id=?", (note, now(), iid))
         log_event(con, actor, "review_fail", note[:300], init["project_name"], iid)
         return get_initiative(con, iid)
+
+
+def model_tasks(declaration, tasks, expected, actor):
+    return task_policy.update(sys.modules[__name__], declaration, tasks, expected, actor)
 
 
 def lane_control(declaration, enabled, expected, actor, controller=None):
@@ -1751,8 +1775,9 @@ def commit(iid: int, message: str, actor: str, sub_id: int | None = None) -> str
         raise OrchError(f"#{iid} has no active build worktree")
     wt = Path(init["worktree_path"])
     guard(wt)
-    if sub_id is not None:
-        _subtask(init,sub_id)
+    pending = [_subtask(init, sub_id)] if sub_id is not None else json.loads(init['execution_plan_json'] or '{}').get('subtasks', [])
+    if not any(s.get('status') == 'doing' and s.get('assignee') == ASSIGNEE_OF.get(actor) for s in pending):
+        task_policy.require(sys.modules[__name__], actor, 'coding')
     if actor in SCOUT_ACTORS:
         if sub_id is None:
             raise OrchError("gemma commits must name the subtask: orch.py commit <id> --sub <n> -m ...")
@@ -1833,6 +1858,8 @@ def queue(agent: str) -> dict:
         projects = rows(con, "SELECT repo_name, priority, complexity, last_scanned_at, is_git, focus_by, focus_until "
                              "FROM projects WHERE priority != 'skip' ORDER BY CASE priority WHEN 'high' THEN 0 "
                              "WHEN 'medium' THEN 1 ELSE 2 END, COALESCE(last_scanned_at, '') ASC")
+    with db() as con:
+        policies = task_policy.read(con)
     spot = get_spotlight()
     solve = []
     if agent in ("planner", "architect"):
@@ -1840,7 +1867,7 @@ def queue(agent: str) -> dict:
             solve = issues_to_solve(con, spot, now())
     result = queue_from_snapshot(agent, inits, projects, spot, now(),
         {actor:handoffs_due(spot,actor) for actor in ("gemma","codex","claude")},
-        {i["id"] for i in inits if finishing(spot,i["id"])}, solve)
+        {i["id"] for i in inits if finishing(spot,i["id"])}, solve, policies)
     items = result.get("subtasks", []) + ([result] if result.get("job")=="subtask" else [])
     for item in items:
         if item.get("worktree"):
@@ -1853,7 +1880,26 @@ def scout_job(project: str) -> str:
     return "facts" if frontier_author(DOSSIERS / project / "DOSSIER.md") else "scan"
 
 
-def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing_ids=(), issues=None):
+def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing_ids=(), issues=None, policies=None):
+    policies = policies or {key: task_policy.defaults(key) for key in task_policy.MODELS}
+    if agent not in task_policy.QUEUES:
+        raise OrchError("agent must be scout|architect|architect-high|planner|reviewer")
+    candidates = [] if agent == 'scout' and not task_policy.allowed(policies, agent, 'coding') else inits
+    if agent == 'reviewer':
+        eligible = [p for p in projects if p.get('priority') in ('high', 'medium') and
+                    not steering.eligibility({}, p, None, clock) and
+                    (not spot or p['repo_name'] == spot['project'])]
+        eligible.sort(key=lambda p: ((DOSSIERS / p['repo_name'] / 'DEEP_READ.md').stat().st_mtime
+                                     if (DOSSIERS / p['repo_name'] / 'DEEP_READ.md').exists() else 0))
+        result = {'job': 'deep_read', 'project': eligible[0]['repo_name'] if eligible and task_policy.allowed(policies, agent, 'review') else None}
+    else:
+        result = _queue_from_snapshot(agent, candidates, projects, spot, clock, due, finishing_ids, issues)
+    if agent == 'scout' and result.get('job') in ('scan', 'facts') and not task_policy.allowed(policies, agent, 'passive'):
+        result = {'job': 'scan', 'project': None}
+    return task_policy.filter_queue(agent, result, policies)
+
+
+def _queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing_ids=(), issues=None):
     """Pure dispatch boundary shared by live queues and read-only forecasting."""
     due = due or {}
     projects = [p for p in projects if p.get("priority") != "skip"]
@@ -1976,6 +2022,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--as", dest="actor", default=os.environ.get("ORCH_ACTOR", "cli"),
                     help="who is acting (scout-gemma, architect-claude, planner-codex, producer)")
     sp = ap.add_subparsers(dest="cmd", required=True)
+    p = sp.add_parser("model-tasks", help="producer task permissions for a scheduled model")
+    p.add_argument("declaration"); p.add_argument("--tasks", required=True, help="JSON object of task booleans")
+    p.add_argument("--expected", required=True)
     p = sp.add_parser("lane-control")
     p.add_argument("declaration"); p.add_argument("--enabled",choices=("true","false"),required=True); p.add_argument("--expected",type=int,required=True)
     p = sp.add_parser("set-initiative")
@@ -2008,7 +2057,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--bottleneck")
     s.add_argument("--optimization-notes")
     s = sp.add_parser("queue", help="what this agent should work on now")
-    s.add_argument("agent", choices=["scout", "architect", "architect-high", "planner"])
+    s.add_argument("agent", choices=["scout", "architect", "architect-high", "planner", "reviewer"])
     s = sp.add_parser("add-spark", help="pitch a new initiative")
     s.add_argument("--project", required=True, help="repo name or NEW_CONCEPT")
     s.add_argument("--category", required=True, choices=CATEGORIES)
@@ -2146,6 +2195,8 @@ def main(argv: list[str] | None = None) -> int:
                 sql = "SELECT repo_name, stack, priority, complexity, playability_score, visual_maturity, " \
                       "last_scanned_at, is_git FROM projects"
                 out = rows(con, sql + ("" if a.all else " WHERE priority != 'skip'") + " ORDER BY repo_name")
+        elif a.cmd == "model-tasks":
+            out = model_tasks(a.declaration, json.loads(a.tasks), a.expected, actor)
         elif a.cmd == "lane-control":
             out = lane_control(a.declaration,a.enabled=="true",a.expected,actor)
         elif a.cmd == "set-initiative":
@@ -2155,7 +2206,7 @@ def main(argv: list[str] | None = None) -> int:
         elif a.cmd == "set-project":
             out = update_project(a.repo, dict(p.split("=", 1) for p in a.pairs), actor)
         elif a.cmd == "scan":
-            out = scan_project(a.repo)
+            out = scan_project(a.repo, actor)
         elif a.cmd == "smoke":
             out = smoke(a.repo, actor)
         elif a.cmd == "write-dossier":

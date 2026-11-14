@@ -465,3 +465,27 @@ details.card-panel .lane-grid { margin-top:12px; }
 .issue.parked .issue-st { color: var(--faint); }
 .issue-title { overflow-wrap: anywhere; }
 @media (max-width: 760px) { .issue { grid-template-columns: 1fr; } .issue .hint { grid-column: 1; } }
+
+/* Model schedules and task permissions */
+.model-explainer { max-width: 80ch; color: var(--muted); margin: 0 0 24px; line-height: 1.6; }
+.model-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,390px),1fr)); gap: 20px; align-items: start; }
+.model-card { border: 1px solid var(--line,#303844); background: var(--panel,#171d27); padding: 22px; border-radius: 12px; }
+.model-card header { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+.model-card h2 { margin:0; font-size:20px; }
+.model-id { margin:7px 0 0; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
+.model-power { cursor:pointer; padding:8px 14px; border-radius:20px; border:1px solid var(--line,#3c4655); background:transparent; color:inherit; font-weight:600; flex-shrink:0; }
+.model-power.on { background:#173c30; color:#93e8b9; border-color:#31775a; }
+.model-power:disabled { opacity:.5; cursor:wait; }
+.model-status { color:var(--muted); font-size:13px; line-height:1.5; min-height:40px; }
+.model-card fieldset { border:0; padding:0; margin:20px 0 12px; min-width:0; }
+.model-card legend { font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--muted); padding:0 0 8px; }
+.model-task { display:flex; align-items:center; gap:18px; justify-content:space-between; padding:13px 0; border-bottom:1px solid var(--line,#303844); cursor:pointer; }
+.model-task span { display:block; }
+.model-task b { font-size:14px; font-weight:500; }
+.model-task small { display:block; color:var(--muted); font-size:12px; margin-top:4px; line-height:1.5; }
+.model-task input { appearance:none; flex:0 0 36px; width:36px; height:21px; border-radius:20px; background:#414958; border:1px solid #667183; position:relative; cursor:pointer; margin:0; }
+.model-task input::before { content:''; position:absolute; left:3px; top:3px; width:13px; height:13px; border-radius:50%; background:#e2e8f0; transition:transform .12s; }
+.model-task input:checked { background:#23734f; border-color:#4ca177; }
+.model-task input:checked::before { transform:translateX(15px); }
+.model-task input:disabled { opacity:.5; cursor:wait; }
+.model-task input:focus-visible,.model-power:focus-visible { outline:2px solid #a6baff; outline-offset:4px; }

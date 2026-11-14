@@ -128,3 +128,15 @@ record the concrete observation under **## Needs frontier** for planner-codex/ar
 Bold opportunities are welcome, but do not investigate outside your one assigned job or spotlight.
 You still NEVER author pitches, designs or plans, change routing policy, or advance producer gates.
 A frontier agent may turn your evidence into a costed spark.
+
+
+## Producer model task controls
+
+Before doing work, use your normal ORCH queue command and obey its `task_permissions` object.
+For reviewer-gemini, use `ORCH queue reviewer` and deep-read only the returned `project`; stop if null.
+Only do enabled task types: `planning` covers HLD/LLD/plan work, `coding` covers implementation,
+`review` covers branch reviews/deep reads, `ideas` covers sparks, pitch revisions and optimization hunts,
+`issues` covers bottleneck investigations, and `passive` covers scans/smoke/dossier refreshes.
+Do not substitute an optimization hunt or pitch when its task permission is false.
+If nothing permitted is available, log and stop. Never change these settings yourself.
+These switches do not waive claims, focus sessions, dependencies, producer gates or the Gemma contract.

@@ -44,6 +44,15 @@ delete that shortcut. To stop the running server, end the `python.exe` process l
 
 ## Schedules (all created DISABLED, all `--session isolated`)
 
+**Producer operating mode (2026-11-14):** Claude Sonnet, Claude Opus and Codex schedules are disabled;
+Claude and Codex are used personally in interactive project sessions. Gemini remains disabled.
+Gemma stays enabled every 30 minutes for scans, safe headless smoke tests and dossier/fact refreshes.
+Coding is disabled; passive work continues past queued implementation tasks. Issue autosolve is off.
+Use the dashboard **Models** tab to change schedules and allowed task types independently; see
+[MODEL_CONTROLS.md](MODEL_CONTROLS.md).
+The original schedules below are retained for a future explicit decision to resume autonomous work.
+Do not re-enable frontier schedules merely because a card is waiting.
+
 | Job | Agent / model | Schedule (local time) |
 | :-- | :-- | :-- |
 | `orch:scout-gemma` | scout-gemma / `ollama/gemma4:12b` | every 30m |

@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException, Request
 from typing import Literal
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictBool
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "scripts"))
@@ -27,6 +27,8 @@ import utilization
 import steering
 import overview
 import dashboard_ops
+import task_policy
+import lane_status
 
 
 @asynccontextmanager
@@ -112,6 +114,23 @@ async def conflict_error(_: Request, exc: steering.Conflict):
 @app.exception_handler(utilization.CollectorError)
 async def collector_error(_: Request, exc: utilization.CollectorError):
     return JSONResponse({"error":exc.reason,"outcome":"unknown"},status_code=503)
+
+
+class ModelTasksPatch(BaseModel):
+    expected_version: str
+    tasks: dict[str, StrictBool]
+
+
+@app.get("/api/models")
+def model_controls():
+    with orch.db() as con:
+        observation = lane_status.read(con, utilization.utc(orch.now()))
+    return task_policy.report(orch, observation)
+
+
+@app.post("/api/models/{declaration}/tasks")
+def patch_model_tasks(declaration: str, body: ModelTasksPatch):
+    return orch.model_tasks(declaration, body.tasks, body.expected_version, "producer")
 
 
 @app.get("/api/version")

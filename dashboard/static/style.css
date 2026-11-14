@@ -164,3 +164,33 @@ pre.raw { font-family: var(--mono); font-size: 12px; background: var(--panel); b
 input.dur { width: 80px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
 .pexp { font-size: 12.5px; line-height: 1.45; color: var(--text); opacity: .85; font-style: italic; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .pexp.na { opacity: .45; font-style: normal; color: var(--faint); }
+
+/* Utilization is deliberately independent of Pulse and the drawer. */
+#view-utilization h1 { margin: 0; font-size: 22px; letter-spacing: -.4px; }
+#view-utilization .toolbar { justify-content: space-between; flex-wrap: wrap; }
+#util-range { margin-left: 8px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+#util-status { color: var(--muted); min-height: 1.5em; }
+#view-utilization .util-tiles { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 12px; }
+#view-utilization .util-card, #view-utilization .util-chart { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+#view-utilization h2 { margin: 0 0 8px; font-size: 16px; }
+#view-utilization p { margin: 8px 0; }
+#view-utilization .util-value { font: 32px var(--mono); color: var(--teal); }
+#view-utilization .util-source, #view-utilization .util-age, #view-utilization small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+#view-utilization small { display: block; }
+#view-utilization ul { padding-left: 18px; overflow-wrap: anywhere; }
+#view-utilization .util-window { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--line); }
+#view-utilization .util-window strong { font: 17px var(--mono); }
+#view-utilization .util-badge { color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+#view-utilization .util-meter { height: 6px; background: var(--line); overflow: hidden; border-radius: 6px; }
+#view-utilization .util-meter i { display: block; height: 100%; background: var(--teal); }
+#view-utilization .util-charts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 16px; }
+#view-utilization .util-chart { margin: 0; }
+#view-utilization figcaption { font-weight: 600; margin-bottom: 12px; }
+#view-utilization svg { width: 100%; height: auto; display: block; overflow: visible; }
+#view-utilization svg text { fill: var(--muted); font: 10px var(--mono); }
+#view-utilization .util-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--muted); font-size: 12px; }
+#view-utilization .util-legend i { display: inline-block; width: 12px; height: 3px; margin-right: 5px; vertical-align: middle; }
+#view-utilization .util-legend i.dashed { border-right: 3px solid var(--panel); }
+#view-utilization .util-summary { color: var(--muted); font-size: 12px; }
+@media (max-width: 850px) { #view-utilization .util-charts { grid-template-columns: 1fr; } }
+@media (max-width: 380px) { #view-utilization .util-tiles { grid-template-columns: minmax(0,1fr); } }

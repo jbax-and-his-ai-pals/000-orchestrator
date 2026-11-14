@@ -370,6 +370,10 @@ document.addEventListener("click", e => {
     document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t === tab));
     document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === `view-${tab.dataset.view}`));
     if (tab.dataset.view === "taste") loadTaste();
+    if (window.Utilization) {
+      if (tab.dataset.view === "utilization") window.Utilization.enter();
+      else window.Utilization.leave();
+    }
     return;
   }
   if (e.target.closest("[data-close]")) return closeDrawer();

@@ -54,3 +54,14 @@ Update this after any dispatch that teaches something.
   Lesson: for Windows tooling, require at least one **real-subprocess smoke** in `verify`, and have the conductor check
   the actual running feature before calling it ready for playtest.
 - Cost: OpenAI 5h window went from ~75% to ~63% left over the LLD, build, review and #4's HLD.
+
+### 2026-11-13: #8 Dashboard MVP (000-orchestrator), Codex end to end
+- Speed: the HLD and LLD took ~12 min; all 9 BUILD subtasks plus review took ~34 min (17:10-17:44). 2,800 lines across 38 files,
+  with 92 Python and 18 Node tests green.
+- Gap: Codex's browser checks were blocked by policy, and it documented that honestly instead of claiming a pass. The
+  conductor's live check found that it had built to the LLD's letter (honest "unknown" everywhere) and missed the
+  producer's intent: no rollups, no ETAs for pending work, internal tokens in the UI. Mocked or empty-state tests can't
+  catch "useful at a glance".
+  Lesson: give Codex the producer's ranked priorities and concrete example output strings in the brief, and require
+  labeled fallbacks over "unknown".
+- Quota: after this build, Codex weekly was at 27% used against an even-burn pace of 18% (over pace).

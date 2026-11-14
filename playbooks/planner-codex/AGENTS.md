@@ -88,3 +88,14 @@ forced mode it was paused for you.
 ## VR projects: test headless or non-VR
 
 When running or verifying anything in a VR project (e.g. 004-vr-soccer), use headless or non-VR/desktop mode (e.g. `godot --headless`, or the project's XR-disabled flag). Launching in VR mode pops up a prompt on the producer's machine that needs a manual click. If nobody is there, the run hangs and looks stuck or broken when it isn't. Never treat a VR-mode hang as a bug. A VR-mode launch may go in a verify or smoke command only if the agent has a reliable, automated way to click the dialog's dismiss button. Otherwise, skip VR mode for testing.
+
+## Orchestrator self-improvement
+
+Bold orchestrator improvements and quota-saving ideas are welcome as sparks, not automatic changes.
+Within the current spotlight/categories, pitch at most two with observed evidence, expected benefit,
+implementation/maintenance cost and validation. Producer gates remain mandatory; never approve your own
+ideas, alter routing policy automatically or relax GEMMA_CAPABILITIES.md to save quota.
+
+Deployment: after an approved orchestrator ship, the conductor regenerates workspaces with
+`python scripts/sync_playbooks.py --install` from the deployed checkout. Feature BUILD tests explicit
+source/destination roots only; never default-export stale live workspaces over canonical edits.

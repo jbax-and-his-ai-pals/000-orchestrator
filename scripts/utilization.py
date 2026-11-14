@@ -212,12 +212,47 @@ def command_output(name, args, timeout):
         # Pass ONE pre-quoted command line: with a list, subprocess.list2cmdline escapes the inner quotes as \"
         # and cmd.exe then cannot find the .cmd file (the collector failed instantly as 'unavailable').
         argv = f'"{comspec}" /d /s /c ""{executable}" {" ".join(args)}"'
-    result = subprocess.run(argv, shell=False, capture_output=True, text=True, encoding='utf-8',
-                            errors='replace', timeout=timeout,
-                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
-    if result.returncode:
-        raise CollectorError('unavailable')
-    return result.stdout
+    limit = 1024*1024
+    process = subprocess.Popen(argv, shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+    buffers = [bytearray(),bytearray()]
+    oversized = threading.Event()
+    capture_lock=threading.Lock()
+    def terminate():
+        if os.name=="nt" and process.poll() is None:
+            try:
+                subprocess.run([str(Path(os.environ.get("SystemRoot","C:/Windows"))/"System32"/"taskkill.exe"),"/PID",str(process.pid),"/T","/F"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=2)
+            except (OSError,subprocess.TimeoutExpired): pass
+        process.kill()
+    def drain(pipe, target):
+        try:
+            while True:
+                chunk = pipe.read(8192)
+                if not chunk: break
+                with capture_lock:
+                    if sum(map(len,buffers))+len(chunk)>limit:
+                        oversized.set()
+                        terminate()
+                        break
+                    target.extend(chunk)
+        finally:
+            pipe.close()
+    threads = [threading.Thread(target=drain,args=(pipe,buffers[n]),daemon=True)
+               for n,pipe in enumerate((process.stdout,process.stderr))]
+    for thread in threads: thread.start()
+    deadline=time.monotonic()+timeout
+    try:
+        process.wait(timeout=timeout)
+        for thread in threads: thread.join(timeout=max(0,deadline-time.monotonic()))
+        if any(t.is_alive() for t in threads): raise subprocess.TimeoutExpired(argv,timeout)
+        if oversized.is_set(): raise CollectorError('oversized')
+        if process.returncode: raise CollectorError('unavailable')
+        return buffers[0].decode('utf-8',errors='replace')
+    except BaseException:
+        terminate()
+        process.wait(timeout=2)
+        raise
+
 
 
 def collect_gpu():
@@ -236,7 +271,7 @@ def collect_ollama():
 
 class Sampler:
     LEASE = 'utilization_sampler_lease_v1'
-    INTERVALS = {'gpu':60, 'ollama':60, 'openai':600, 'prune':3600}
+    INTERVALS = {'cron':30, 'gpu':60, 'ollama':60, 'openai':600, 'prune':3600}
 
     def __init__(self, store, collectors=None, monotonic=time.monotonic):
         self.store = store
@@ -245,6 +280,9 @@ class Sampler:
         self.collectors = collectors if collectors is not None else {
             'gpu':collect_gpu, 'ollama':collect_ollama,
             'openai':lambda: parse_openai(command_output('openclaw', ['models','status'], 20), store.clock())}
+        if collectors is None:
+            import lane_status
+            self.collectors['cron'] = lane_status.collect_cron
         self.stop_event = threading.Event()
         self.thread = None
         self.next_tick = 0
@@ -286,6 +324,8 @@ class Sampler:
             if self.stop_event.is_set():
                 break
             try:
+                if source != 'prune' and source not in self.collectors:
+                    continue
                 if not self.claim(source):
                     continue
                 if source == 'prune':
@@ -294,12 +334,20 @@ class Sampler:
                     observed = self.store.clock()
                     try:
                         rows = self.collectors[source]()
-                        self.store.insert(source, rows, observed)
+                        if source == 'cron':
+                            import lane_status
+                            lane_status.save(self.store,rows,observed=observed)
+                        else:
+                            self.store.insert(source, rows, observed)
                     except Exception as exc:
                         reason = ('timeout' if isinstance(exc, (TimeoutError, subprocess.TimeoutExpired)) else
                                   exc.reason if isinstance(exc, CollectorError) else
                                   'parse_error' if isinstance(exc, (ValueError, TypeError, KeyError)) else 'unavailable')
-                        self.store.insert(source, [{'key':'error','value':1,'meta':{'reason':reason}}], observed)
+                        if source == 'cron':
+                            import lane_status
+                            lane_status.save(self.store,error=reason,observed=observed)
+                        else:
+                            self.store.insert(source, [{'key':'error','value':1,'meta':{'reason':reason}}], observed)
             except Exception:
                 # Busy database/failed source never suppresses the other source's next attempt.
                 continue

@@ -8,6 +8,8 @@ orchestrator.db, so the main-branch guard and the taste-profile log live here.
 """
 from __future__ import annotations
 
+import steering
+import uuid
 import argparse
 import contextlib
 import datetime as dt
@@ -238,6 +240,7 @@ CREATE TABLE IF NOT EXISTS initiatives (
     project_name TEXT NOT NULL,
     category TEXT NOT NULL CHECK (category IN ('fun_gameplay','visual_craft','optimization','tech_audacity','new_game')),
     title TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('high','medium','low')),
     slug TEXT NOT NULL,
     pitch_summary TEXT,
     stage TEXT NOT NULL DEFAULT 'spark' CHECK (stage IN ('spark','hld_draft','hld_review','lld_draft','lld_review','building','playtest','done','rejected')),
@@ -302,6 +305,8 @@ def init_db() -> None:
     STATE.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(DB_PATH)
     con.executescript(SCHEMA)
+    import lane_status
+    con.executescript(lane_status.SCHEMA)
     have = {r[1] for r in con.execute("PRAGMA table_info(initiatives)")}
     for col in ("claimed_by", "claimed_at", "claim_expires_at", "claim_note"):
         if col not in have:
@@ -310,14 +315,19 @@ def init_db() -> None:
     for col in ("focus_by", "focus_until", "focus_note", "player_experience"):
         if col not in have:
             con.execute(f"ALTER TABLE projects ADD COLUMN {col} TEXT")
+    if "priority" not in {r[1] for r in con.execute("PRAGMA table_info(initiatives)")}:
+        con.execute("ALTER TABLE initiatives ADD COLUMN priority TEXT NOT NULL DEFAULT 'medium'")
+    if "details_json" not in {r[1] for r in con.execute("PRAGMA table_info(events)")}:
+        con.execute("ALTER TABLE events ADD COLUMN details_json TEXT")
+    con.execute("CREATE INDEX IF NOT EXISTS idx_events_init_id ON events(initiative_id,id)")
     con.commit()
     con.close()
 
 
 def log_event(con, actor: str, kind: str, message: str = "", project: str | None = None,
-              initiative_id: int | None = None) -> None:
-    con.execute("INSERT INTO events(ts, actor, project_name, initiative_id, kind, message) VALUES (?,?,?,?,?,?)",
-                (now(), actor, project, initiative_id, kind, message))
+              initiative_id: int | None = None, details: dict | None = None) -> None:
+    con.execute("INSERT INTO events(ts, actor, project_name, initiative_id, kind, message,details_json) VALUES (?,?,?,?,?,?,?)",
+                (now(), actor, project, initiative_id, kind, message, json.dumps(details) if details else None))
 
 
 def rows(con, sql: str, *params) -> list[dict]:
@@ -403,7 +413,7 @@ PROJECT_FIELDS = {"stack", "priority", "complexity", "playability_score", "visua
                   "optimization_notes", "bottleneck_summary", "player_experience"}
 
 
-def update_project(name: str, fields: dict, actor: str = "dashboard") -> dict:
+def update_project(name: str, fields: dict, actor: str = "dashboard", expected: str | None = None) -> dict:
     bad = set(fields) - PROJECT_FIELDS
     if bad:
         raise OrchError(f"cannot set {sorted(bad)}; allowed: {sorted(PROJECT_FIELDS)}")
@@ -420,7 +430,7 @@ def update_project(name: str, fields: dict, actor: str = "dashboard") -> dict:
                 raise OrchError(f"{k} must be 0-10")
             fields[k] = v
     with db(write=True) as con:
-        get_project(con, name)
+        steering.expect(project_version(get_project(con, name)), expected)
         sets = ", ".join(f"{k}=?" for k in fields)
         con.execute(f"UPDATE projects SET {sets} WHERE repo_name=?", (*fields.values(), name))
         log_event(con, actor, "project_updated", ", ".join(f"{k}={v}" for k, v in fields.items()), name)
@@ -551,7 +561,7 @@ def smoke(name: str, actor: str = "scout") -> dict:
     with db() as con:
         proj = get_project(con, name)
     check_focus(name, actor)
-    check_spotlight(name, actor)
+    check_spotlight(name, actor, scout_fallback=True)
     if not proj["is_git"]:
         return {"repo": name, "ran": False, "reason": "not a git repo"}
     repo = Path(proj["local_path"])
@@ -603,7 +613,7 @@ def write_dossier(name: str, text: str, actor: str, fields: dict | None = None) 
     with db() as con:
         get_project(con, name)
     check_focus(name, actor)
-    check_spotlight(name, actor)
+    check_spotlight(name, actor, scout_fallback=True)
     if actor in SCOUT_ACTORS:
         missing = [h for h in GEMMA["dossier_headings"] if h.lower() not in text.lower()]
         if missing:
@@ -655,12 +665,24 @@ def design_dir(init: dict) -> Path:
 
 
 def add_spark(project: str, category: str, title: str, pitch: str, actor: str,
-              complexity: str | None = None) -> dict:
+              complexity: str | None = None, idempotency: str | None = None) -> dict:
     if category not in CATEGORIES:
         raise OrchError(f"category must be one of {CATEGORIES}")
     check_focus(project, actor)
     check_spotlight(project, actor, category)
     with db(write=True) as con:
+        receipt = None
+        body_hash = steering.version([project,category,title,pitch])
+        if idempotency is not None:
+            if not re.fullmatch(r"[a-zA-Z0-9-]{8,100}",idempotency): raise OrchError("invalid idempotency key")
+            receipt = "idea:"+idempotency
+            cutoff=(dt.datetime.now().astimezone()-dt.timedelta(days=7)).isoformat(timespec="seconds")
+            con.execute("DELETE FROM settings WHERE key LIKE 'idea:%' AND json_extract(value,'$.at')<?",(cutoff,))
+            saved = con.execute("SELECT value FROM settings WHERE key=?",(receipt,)).fetchone()
+            if saved:
+                data = json.loads(saved[0])
+                steering.expect(data["hash"],body_hash)
+                return get_initiative(con,data["id"])
         if project != "NEW_CONCEPT":
             proj = get_project(con, project)
             complexity = complexity or proj["complexity"]
@@ -680,6 +702,9 @@ def add_spark(project: str, category: str, title: str, pitch: str, actor: str,
         (design_dir(init) / "PITCH.md").write_text(
             f"# {title}\n\n- **Project:** {project}\n- **Category:** {category}\n- **Complexity:** {complexity}\n"
             f"- **Pitched by:** {actor} at {ts}\n\n{pitch.strip()}\n", encoding="utf-8")
+        if receipt:
+            con.execute("INSERT INTO settings VALUES (?,?)",(receipt,json.dumps({"id":init["id"],"hash":body_hash,"at":now()})))
+            con.execute("DELETE FROM settings WHERE key IN (SELECT key FROM settings WHERE key LIKE 'idea:%' ORDER BY json_extract(value,'$.at') DESC LIMIT -1 OFFSET 100)")
         log_event(con, actor, "spark", title, project, init["id"])
         return init
 
@@ -870,10 +895,14 @@ def handoff_note(iid: int, note: str, actor: str) -> dict:
     return {"ok": True, "file": str(design_dir(init) / "HANDOFF_NOTES.md")}
 
 
-def check_spotlight(project: str, actor: str, category: str | None = None, iid: int | None = None) -> None:
-    """While a spotlight is on, scheduled agents work only on that project (and aspect, for new sparks)."""
+def check_spotlight(project: str, actor: str, category: str | None = None, iid: int | None = None,
+                    scout_fallback: bool = False) -> None:
+    """While a spotlight is on, scheduled agents work only on that project (and aspect, for new sparks).
+    Gemma is free, so its dossier work (scan/smoke/dossier) may fall back to other projects: scout_fallback."""
     s = get_spotlight()
     if not s or actor not in AGENT_ACTORS:
+        return
+    if scout_fallback and actor in SCOUT_ACTORS:
         return
     if project != s["project"]:
         if finishing(s, iid):
@@ -1085,8 +1114,8 @@ def ready(sub: dict, subs: list[dict]) -> bool:
     done = {int(s["id"]) for s in subs if s.get("status") == "done"}
     if "depends_on" in sub:
         return all(int(d) in done for d in sub.get("depends_on") or [])
-    return all(int(s["id"]) in done for s in subs
-               if int(s["id"]) < int(sub["id"]) and s.get("assignee") != "ide_handoff")
+    pos = next((n for n,s in enumerate(subs) if s["id"] == sub["id"]), len(subs))
+    return all(int(s["id"]) in done for s in subs[:pos] if s.get("assignee") != "ide_handoff")
 
 
 def reroute(iid: int, sub_id: int, to: str, actor: str, note: str = "") -> dict:
@@ -1200,6 +1229,11 @@ def subtask_update(iid: int, sub_id: int, status: str, note: str, actor: str) ->
                     raise OrchError(f"subtask {sub_id} is routed to {s['assignee']}, not gemma")
                 if status == "done" and actor in SCOUT_ACTORS and not s.get("verify_ok"):
                     raise OrchError(f"run `orch.py verify {iid} {sub_id}` and get a pass before marking done")
+                previous = s.get("status")
+                if status == "doing" and previous != "doing":
+                    s["run_attempt"] = uuid.uuid4().hex
+                details = {"v":1,"work_type":"build","stage":"building","subtask_id":sub_id,
+                           "attempt":s.get("run_attempt"),"from":previous,"to":status}
                 s["status"] = status
                 if note:
                     s["notes"] = (s.get("notes", "") + f"\n[{now()} {actor}] {note}").strip()
@@ -1210,7 +1244,7 @@ def subtask_update(iid: int, sub_id: int, status: str, note: str, actor: str) ->
             raise OrchError(f"#{iid} has no subtask {sub_id}")
         con.execute("UPDATE initiatives SET execution_plan_json=?, updated_at=? WHERE id=?",
                     (json.dumps(plan), now(), iid))
-        log_event(con, actor, "subtask", f"{sub_id} -> {status}: {note}"[:300], init["project_name"], iid)
+        log_event(con, actor, "subtask", f"{sub_id} -> {status}: {note}"[:300], init["project_name"], iid, details)
         auto = status == "blocked" and s["assignee"] == "gemma" and s["attempts"] >= GEMMA["max_attempts"]
     if auto:
         return escalate(iid, sub_id, f"gemma blocked {s['attempts']}x: {note}", "orch")
@@ -1235,6 +1269,42 @@ def review_build(iid: int, verdict: str, note: str, actor: str) -> dict:
         con.execute("UPDATE initiatives SET revision_note=?, updated_at=? WHERE id=?", (note, now(), iid))
         log_event(con, actor, "review_fail", note[:300], init["project_name"], iid)
         return get_initiative(con, iid)
+
+
+def lane_control(declaration, enabled, expected, actor, controller=None):
+    import dashboard_ops
+    return dashboard_ops.lane_control(sys.modules[__name__],declaration,enabled,expected,actor,controller)
+
+
+def project_version(project):
+    return steering.version({k:project.get(k) for k in sorted(PROJECT_FIELDS)})
+
+
+def set_initiative(iid, priority, expected, actor):
+    if priority not in ('high','medium','low'):
+        raise OrchError('initiative priority must be high/medium/low')
+    with db(write=True) as con:
+        init = get_initiative(con,iid)
+        check_claim(init,actor)
+        steering.expect(steering.version(init),expected)
+        con.execute('UPDATE initiatives SET priority=? WHERE id=?',(priority,iid))
+        log_event(con,actor,'initiative_priority',priority,init['project_name'],iid)
+        return get_initiative(con,iid)
+
+
+def reorder_subtasks(iid, order, expected, actor):
+    with db(write=True) as con:
+        init = get_initiative(con,iid)
+        check_claim(init,actor)
+        steering.expect(steering.version(init['execution_plan_json']),expected)
+        plan = json.loads(init['execution_plan_json'] or '{}')
+        try:
+            plan['subtasks'] = steering.reordered(plan.get('subtasks',[]),order)
+        except ValueError as exc:
+            raise OrchError(str(exc)) from exc
+        con.execute('UPDATE initiatives SET execution_plan_json=? WHERE id=?',(json.dumps(plan),iid))
+        log_event(con,actor,'subtask_order',json.dumps(order),init['project_name'],iid)
+        return get_initiative(con,iid)
 
 
 # ---------------------------------------------------------------- producer controls
@@ -1483,6 +1553,8 @@ def commit(iid: int, message: str, actor: str, sub_id: int | None = None) -> str
         raise OrchError(f"#{iid} has no active build worktree")
     wt = Path(init["worktree_path"])
     guard(wt)
+    if sub_id is not None:
+        _subtask(init,sub_id)
     if actor in SCOUT_ACTORS:
         if sub_id is None:
             raise OrchError("gemma commits must name the subtask: orch.py commit <id> --sub <n> -m ...")
@@ -1503,9 +1575,18 @@ def commit(iid: int, message: str, actor: str, sub_id: int | None = None) -> str
     p = run(["git", "-C", str(wt), "commit", "-m", f"{message}\n\nOrchestrator: #{iid} by {actor}"])
     if p.returncode != 0 and "nothing to commit" not in p.stdout + p.stderr:
         raise OrchError(p.stderr.strip() or p.stdout.strip())
-    sha = git(wt, "rev-parse", "--short", "HEAD")
+    sha = git(wt, "rev-parse", "HEAD")
     with db(write=True) as con:
-        log_event(con, actor, "commit", f"{sha} {message}"[:300], init["project_name"], iid)
+        current = get_initiative(con, iid)
+        if sub_id is not None and p.returncode == 0:
+            plan = json.loads(current["execution_plan_json"] or "{}")
+            sub = next(x for x in plan["subtasks"] if int(x["id"]) == int(sub_id))
+            commits = sub.setdefault("commit_shas", [])
+            if sha not in commits:
+                commits.append(sha)
+            con.execute("UPDATE initiatives SET execution_plan_json=? WHERE id=?", (json.dumps(plan),iid))
+        log_event(con, actor, "commit", f"{sha} {message}"[:300], init["project_name"], iid,
+                  {"v":1,"subtask_id":sub_id,"sha":sha})
     return sha
 
 
@@ -1554,12 +1635,30 @@ def queue(agent: str) -> dict:
         projects = rows(con, "SELECT repo_name, priority, complexity, last_scanned_at, is_git, focus_by, focus_until "
                              "FROM projects WHERE priority != 'skip' ORDER BY CASE priority WHEN 'high' THEN 0 "
                              "WHEN 'medium' THEN 1 ELSE 2 END, COALESCE(last_scanned_at, '') ASC")
-    focused = {p["repo_name"] for p in projects if active_focus(p)}
-    # claimed cards and focused projects are invisible to the scheduled agents
-    inits = [i for i in inits if not active_claim(i) and i["project_name"] not in focused]
     spot = get_spotlight()
-    if spot:
-        inits = [i for i in inits if i["project_name"] == spot["project"] or finishing(spot, i["id"])]
+    result = queue_from_snapshot(agent, inits, projects, spot, now(),
+        {actor:handoffs_due(spot,actor) for actor in ("gemma","codex","claude")},
+        {i["id"] for i in inits if finishing(spot,i["id"])})
+    items = result.get("subtasks", []) + ([result] if result.get("job")=="subtask" else [])
+    for item in items:
+        if item.get("worktree"):
+            item["new_files"] = [f for f in item["subtask"].get("files", []) if not (Path(item["worktree"]) / f).exists()]
+    return result
+
+
+def queue_from_snapshot(agent, inits, projects, spot, clock, due=None, finishing_ids=()):
+    """Pure dispatch boundary shared by live queues and read-only forecasting."""
+    due = due or {}
+    projects = [p for p in projects if p.get("priority") != "skip"]
+    projects.sort(key=lambda p:({"high":0,"medium":1,"low":2}.get(p.get("priority"),3),p.get("last_scanned_at") or ""))
+    focused = {p["repo_name"] for p in projects if steering.eligibility({},p,None,clock) == "project focus"}
+    by_project = {p["repo_name"]:p for p in projects}
+    who = {"planner":"codex","scout":"gemma"}.get(agent,"claude")
+    inits = [i for i in inits if not steering.eligibility(i, by_project.get(i["project_name"], {"priority":"skip"}),
+             spot, clock, bool(due.get(who)), i["id"] in finishing_ids)]
+    rank = {"high":0,"medium":1,"low":2,"skip":3}
+    inits.sort(key=lambda i:(rank.get(by_project.get(i["project_name"],{}).get("priority"),3),
+                            rank.get(i.get("priority"),1),i["updated_at"],i["id"]))
     projects = [{k: p[k] for k in ("repo_name", "priority", "complexity", "last_scanned_at", "is_git")}
                 for p in projects if p["repo_name"] not in focused]
     def subtasks_for(who):
@@ -1572,34 +1671,35 @@ def queue(agent: str) -> dict:
                 off_spot = spot and i["project_name"] != spot["project"]
                 if off_spot and s["status"] != "doing":
                     continue  # graceful: only finish what was already in progress elsewhere
-                if s["assignee"] == who and s["status"] in ("todo", "doing") and ready(s, subs):
+                if s["assignee"] == who and s["status"] in ("todo", "doing") and ready(s, subs) and (who != "gemma" or not gemma_fit(s, i["complexity"])):
                     item = {"initiative": i["id"], "project": i["project_name"], "worktree": i["worktree_path"],
                             "subtask": s}
-                    if i["worktree_path"]:
-                        item["new_files"] = [f for f in s.get("files", [])
-                                             if not (Path(i["worktree_path"]) / f).exists()]
                     out.append(item)
         return out
     brief = lambda i: {k: i[k] for k in ("id", "project_name", "title", "stage", "complexity", "revision_note")}
     if agent == "scout":
         # One job per run: a 12B model does one narrow thing well, several things badly.
-        due = handoffs_due(spot, "gemma")
-        if due:
-            return {"job": "handoff", **due[0], "spotlight": spot}
+        scout_due = due.get("gemma", [])
+        if scout_due:
+            return {"job": "handoff", **scout_due[0], "spotlight": spot}
         subs = subtasks_for("gemma")
         if subs:
             return {"job": "subtask", **subs[0], "remaining": len(subs) - 1, "spotlight": spot}
         if spot:
             p = next((x for x in projects if x["repo_name"] == spot["project"]), None)
-            fresh = p and p["last_scanned_at"] and p["last_scanned_at"] > (
-                dt.datetime.now().astimezone() - dt.timedelta(hours=6)).isoformat(timespec="seconds")
-            return {"job": "scan", "project": None if (not p or fresh) else p["repo_name"], "spotlight": spot}
-        return {"job": "scan", "project": projects[0]["repo_name"] if projects else None}
+            fresh = p and steering.recent(p.get("last_scanned_at"),clock,6*3600)
+            if p and not fresh:
+                return {"job": "scan", "project": p["repo_name"], "spotlight": spot}
+        # Gemma is free, so it is never idle: otherwise refresh the stalest dossier not scanned in the last 6h
+        # (priority first, then oldest scan). Focused projects are already excluded above.
+        stale = [x for x in projects if not steering.recent(x.get("last_scanned_at"),clock,6*3600)]
+        job = {"job": "scan", "project": stale[0]["repo_name"] if stale else None}
+        return {**job, "spotlight": spot, "fallback": True} if spot else job
     if agent in ("architect", "architect-high"):
         want_high = agent == "architect-high"
         hld = [brief(i) for i in inits if i["stage"] == "hld_draft" and (i["complexity"] == "high") == want_high]
         respark = [brief(i) for i in inits if i["stage"] == "spark" and i["revision_note"]]
-        return {"spotlight": spot, "handoffs_due": handoffs_due(spot, "claude"), "hld_to_draft": hld, "sparks_needing_rework": respark if not want_high else [],
+        return {"spotlight": spot, "handoffs_due": due.get("claude", []), "hld_to_draft": hld, "sparks_needing_rework": respark if not want_high else [],
                 "open_sparks": sum(1 for i in inits if i["stage"] == "spark"),
                 "subtasks": subtasks_for("claude") if not want_high else []}
     if agent == "planner":
@@ -1612,7 +1712,7 @@ def queue(agent: str) -> dict:
             work = [s for s in plan["subtasks"] if s["assignee"] != "ide_handoff"]
             if work and all(s["status"] == "done" for s in work) and plan.get("review", {}).get("status") != "pass":
                 review.append(brief(i))
-        return {"spotlight": spot, "handoffs_due": handoffs_due(spot, "codex"), "lld_to_draft": lld, "branches_to_review": review, "subtasks": subtasks_for("codex")}
+        return {"spotlight": spot, "handoffs_due": due.get("codex", []), "lld_to_draft": lld, "branches_to_review": review, "subtasks": subtasks_for("codex")}
     raise OrchError("agent must be scout|architect|architect-high|planner")
 
 
@@ -1667,6 +1767,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--as", dest="actor", default=os.environ.get("ORCH_ACTOR", "cli"),
                     help="who is acting (scout-gemma, architect-claude, planner-codex, producer)")
     sp = ap.add_subparsers(dest="cmd", required=True)
+    p = sp.add_parser("lane-control")
+    p.add_argument("declaration"); p.add_argument("--enabled",choices=("true","false"),required=True); p.add_argument("--expected",type=int,required=True)
+    p = sp.add_parser("set-initiative")
+    p.add_argument("id",type=int); p.add_argument("--priority",required=True); p.add_argument("--expected",required=True)
+    p = sp.add_parser("reorder-subtasks")
+    p.add_argument("id",type=int); p.add_argument("--order",required=True); p.add_argument("--expected",required=True)
 
     s = sp.add_parser("quota-snapshot", help="record manual Claude quota readings")
     s.add_argument("--provider", required=True, choices=["anthropic"])
@@ -1807,6 +1913,12 @@ def main(argv: list[str] | None = None) -> int:
                 sql = "SELECT repo_name, stack, priority, complexity, playability_score, visual_maturity, " \
                       "last_scanned_at, is_git FROM projects"
                 out = rows(con, sql + ("" if a.all else " WHERE priority != 'skip'") + " ORDER BY repo_name")
+        elif a.cmd == "lane-control":
+            out = lane_control(a.declaration,a.enabled=="true",a.expected,actor)
+        elif a.cmd == "set-initiative":
+            out = set_initiative(a.id,a.priority,a.expected,actor)
+        elif a.cmd == "reorder-subtasks":
+            out = reorder_subtasks(a.id,json.loads(a.order),a.expected,actor)
         elif a.cmd == "set-project":
             out = update_project(a.repo, dict(p.split("=", 1) for p in a.pairs), actor)
         elif a.cmd == "scan":
@@ -1900,7 +2012,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             ap.error("unknown command")
             return 2
-    except OrchError as e:
+    except (OrchError, ValueError) as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
         return 1
     print(json.dumps(out, indent=2, default=str))
@@ -1911,3 +2023,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+
+

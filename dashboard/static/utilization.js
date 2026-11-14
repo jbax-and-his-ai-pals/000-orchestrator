@@ -20,16 +20,25 @@
     return item?.observed_at ? '<span data-util-age="' + escape(item.observed_at) + '"></span>' : "never recorded";
   }
   function state(item) {
-    return '<span class="util-badge">' + escape(item?.status || "missing") + '</span> ' + escape(item?.reason || "");
+    return '<span class="util-badge s-' + escape(item?.status || 'missing') + '">' + escape(item?.status || "missing") + '</span> ' + escape(item?.reason || "");
   }
   function card(title, body, item) {
     return '<article class="util-card"><h2>' + title + '</h2><p class="util-source">' + state(item) + '</p>' + body + '<p class="util-age">Last recorded: ' + age(item) + '</p></article>';
+  }
+  function paceLine(title, w) {
+    const lane = (root.__overview?.lanes || []).find(l => l.label === (title === 'OpenAI' ? 'Codex' : title));
+    const m = lane?.quota?.windows?.[w];
+    if (!m || m.delta_pp == null) return '';
+    const d = m.delta_pp, word = Math.abs(d) <= 5 ? 'on pace' : (d > 0 ? 'over pace' : 'under pace');
+    const cls = Math.abs(d) <= 5 ? 'good' : d > 0 ? 'warn' : 'good';
+    return '<small class="util-pace ' + cls + '"><b>' + word + '</b> · used ' + m.actual_used.toFixed(0) + '% vs ' + m.target_used.toFixed(0) + '% even burn (' + (Math.round(d) > 0 ? '+' : '') + (Math.round(d) || 0) + ' pts)' + (w === 'weekly' ? ' · info only until MVP' : '') + '</small>';
   }
   function quota(title, windows, manual) {
     return '<article class="util-card"><h2>' + title + '</h2><p class="util-source">' + (manual ? 'Manual snapshots · not live usage' : 'Status output · estimated resets') + '</p>' + ["5h","weekly"].map(w => {
       const item = windows?.[w];
       const reset = item?.meta?.resets_at;
-      return '<div class="util-window"><b>' + w + '</b><strong>' + format(item?.value, "% remaining") + '</strong><small>' + state(item) + '</small><small>Recorded ' + age(item) + '</small><small>Reset ' + (reset ? '<span data-util-reset="' + escape(reset) + '"></span> · ' + escape(reset) : 'unknown') + '</small></div>';
+      const v = finite(item?.value) ? clamp(item.value,0,100) : null, lvl = v === null ? '' : v < 20 ? 'bad' : v < 50 ? 'warn' : 'good';
+      return '<div class="util-window ' + lvl + '"><b>' + w + '</b><strong class="util-big">' + format(item?.value, "% left") + '</strong><div class="util-meter q"><i style="width:' + (v ?? 0) + '%"></i></div>' + paceLine(title, w) + '<small>' + state(item) + '</small><small>Recorded ' + age(item) + '</small><small>Reset ' + (reset ? '<span data-util-reset="' + escape(reset) + '"></span> · ' + escape(reset) : 'unknown') + '</small></div>';
     }).join("") + '</article>';
   }
   function tiles(current) {

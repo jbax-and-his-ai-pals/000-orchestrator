@@ -84,3 +84,15 @@ Update this after any dispatch that teaches something.
   frontier_author reads the first actor.
 - Cost: about 3% of the Claude 5h window per repo (73 -> 76%, including some chat). Budget about 2.5-3% per repo.
 
+
+### 2026-11-14: 019 fixed-bank headroom (Codex gpt-6.1-sol, ~14 min)
+- Delivered a careful 6502 far-call bridge with a 27-case CPU harness, a byte-level fixed-bank audit, and honest
+  reporting: it refused unproven "free" ROM regions and flagged 4 stale scenarios as failing on the baseline too.
+- Headroom gain was small (+5 bytes) because the real win is the 5-byte hook cost; the brief's "reclaim space" goal
+  was mostly unachievable. It moved a possibly hot path (lava contact) onto the slow bridge: briefs should say to
+  measure any migrated path in its own scene, not only in the brief's perf scenario.
+
+### 2026-11-14: 019 upstab + stale tests (Codex, 10 and 5 min)
+- Both fast and solid; my reruns matched. Miss: upstab took WRAM `$6469`, already `SHOUT_CYCLE` in `shouts.inc`, because
+  the AGENTS.md memory map didn't list it. Lesson: briefs that allocate RAM should say "grep `src/` for the address
+  before claiming it", not trust the map; conductor greps for overlaps when merging parallel branches.

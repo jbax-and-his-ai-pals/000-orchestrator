@@ -9,6 +9,20 @@ _Last updated: 2026-11-13 21:40 PT_
 **Chat start:** read this file and `inbox --md`, nothing more, until the producer asks for something.
 
 ## Running now
+- **019-z2-barba (2026-11-14 late):** producer branch `feat/stomp-lava-link-downstab` (in the main checkout, not merged to main):
+  `3ce5d3e` checkpoint, `be41fea` upstab design (approved; `docs/UPSTAB-FIRE-PLAN.md`), `71896d0` title fireball SFX -> rare
+  noise roar, `fc4380e` overworld side sprite redraw, `d61dd77` Lava Link 16x16 head + neck stops at lava (5 pieces).
+  **Fixed-bank MERGED** (`0132cf7`, producer OK): FarCall0 bridge, 5 fixed bytes per new cold hook (~474 cycles), fixed free 16.
+  Lava cost measured with new `tests/perf_lava.lua`: avg +290 cycles, peak unchanged 21,677, 0 lag. Suite green except the
+  known stale town_safety/shouts/shout_queue/dialogue_speed (fail on baseline too; listed in AGENTS.md).
+  **Town fire MERGED** (`1782220`, producer asked to test it): scorch flames -> char, buildings/collision intact; play build
+  and test pack installed; awaiting the producer's F8 playtest verdict (revert the merge if rejected). Upstab and stale tests MERGED (`cdc1a57`, `203eff8`; BREATH_UP moved $6469 -> $646B
+  at merge, since $6469 is SHOUT_CYCLE). Full suite green, no stale tests left. Lava Link hurt sound `1583644`. Codex checkpoints DONE,
+  unmerged: `feat/checkpoint-sets` @ `8e559be` (43 states; Codex could not view PNGs, so I reviewed the sheets). Issues: GP low tunnel,
+  Before Dark Link and Movement low ceiling are all room $36 (duplicates); "GP elevator" and "P1 elevator shaft" show no elevator;
+  no bottomless pit; Endgame has 7 and Movement 6 states. Producer: "fix and then install". Codex `barba-checkpoint-fixes` RUNNING (18:54; `logs/barba_checkpoint_fixes.out`,
+  brief `briefs/barba-checkpoint-fixes-codex.md`, same worktree). Then: review sheets, merge, rebuild, install pack. Then: looking-up head art in chat; update the 4 stale tests. Battle flicker still open. Producer decisions 2026-11-14: Lava Link stays Barba-style, beams always, no weakening, difficulty
+  not a goal; try a shield mechanic; Link hurt sound for the boss only; flicker and polish later. Opener: "Barba: checkpoint sets: merge or fix duplicates."
 - **Overnight, hands-free (all detached; they survive chat close):** 22:33 Claude judgment pass on 11 repos (low
   skipped) → ~23:00 Claude solves 002, 014, 017, 019 + Opus HLD for #11 → 23:47 Codex and Claude on 000's dossier →
   ~00:00 Codex solves 007, 008, 012, 015 → Codex builds strain fixes (if 35% or more left). Scheduled: Claude Sonnet

@@ -17,13 +17,12 @@ _Last updated: 2026-11-13 21:40 PT_
   known stale town_safety/shouts/shout_queue/dialogue_speed (fail on baseline too; listed in AGENTS.md).
   **Town fire MERGED** (`1782220`, producer asked to test it): scorch flames -> char, buildings/collision intact; play build
   and test pack installed; producer playtested F8 2026-11-14: "looks great; keep". Upstab and stale tests MERGED (`cdc1a57`, `203eff8`; BREATH_UP moved $6469 -> $646B
-  at merge, since $6469 is SHOUT_CYCLE). Full suite green, no stale tests left. Lava Link hurt sound `1583644`. Checkpoint sets MERGED to main and PUSHED
-  (`2df36c5`; fixes `836b8c4` reviewed by sheet: elevators, tunnels OK; no lethal pit exists, P6 drop-shaft edge instead; 44 states).
-  main pushed at `2df36c5` (also `f8147a5` normalized TEST-PACK.md CRLF). The producer's checkout is on ANOTHER agent's branch
-  `feat/look-up-head` (`02ad64f` looking-up head art, `6abf789` Lava Link shield experiment), not on main and not merged.
-  Producer chose to play checkpoints from `worktrees/019-z2-barba/main-merge/play/` (all 5 sets prepare OK). Don't
-  remove that worktree while it's in use; its `roms`/`.tools` are junctions (remove the junctions first if cleaning up). **`feat/look-up-head`** (main checkout, unmerged): `02ad64f` looking-up head (boss head sheared 2:1, frame 8 for rising Up / airborne Up+B), playtest pending. Lava Link shield tried and DROPPED by the producer (too hard to hit; reverted `bdbc0c6`). Play build + 10-state pack installed from this branch. Merge it to main before Codex's checkpoint pack is rebuilt. Battle flicker still open. Producer decisions 2026-11-14: Lava Link stays Barba-style, beams always, no weakening, difficulty
-  not a goal; try a shield mechanic; Link hurt sound for the boss only; flicker and polish later. Opener: "Barba: install checkpoint sets; review look-up-head branch."
+  at merge, since $6469 is SHOUT_CYCLE). Full suite green, no stale tests left. Lava Link hurt sound `1583644`. EVERYTHING ON MAIN, PUSHED (`adb6333`): checkpoint sets (44 states, 5 launchers in `play/`),
+  look-up-head art from another agent (`02ad64f`; its shield experiment was reverted, `bdbc0c6`). The producer's checkout is on `main`
+  with `play/barba.nes` and all sets installed; full suite (30 scenarios + 17 unit tests) green. main-merge worktree removed.
+  Remaining merged-branch worktrees (fixed-bank, upstab, stale-tests, town-fire, checkpoints) can be cleaned up: delete their
+  `roms`/`.tools` junctions with PowerShell `(Get-Item p).Delete()` FIRST, then `git worktree remove`. **`feat/look-up-head`** (main checkout, unmerged): `02ad64f` looking-up head (boss head sheared 2:1, frame 8 for rising Up / airborne Up+B), playtest pending. Lava Link shield tried and DROPPED by the producer (too hard to hit; reverted `bdbc0c6`). Play build + 10-state pack installed from this branch. Merge it to main before Codex's checkpoint pack is rebuilt. Battle flicker still open. Producer decisions 2026-11-14: Lava Link stays Barba-style, beams always, no weakening, difficulty
+  not a goal; try a shield mechanic; Link hurt sound for the boss only; flicker and polish later. Opener: "Barba: whole-game playtest notes."
 - **Overnight, hands-free (all detached; they survive chat close):** 22:33 Claude judgment pass on 11 repos (low
   skipped) → ~23:00 Claude solves 002, 014, 017, 019 + Opus HLD for #11 → 23:47 Codex and Claude on 000's dossier →
   ~00:00 Codex solves 007, 008, 012, 015 → Codex builds strain fixes (if 35% or more left). Scheduled: Claude Sonnet

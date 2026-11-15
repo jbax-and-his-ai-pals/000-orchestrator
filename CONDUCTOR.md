@@ -16,13 +16,13 @@ _Last updated: 2026-11-13 21:40 PT_
   Lava cost measured with new `tests/perf_lava.lua`: avg +290 cycles, peak unchanged 21,677, 0 lag. Suite green except the
   known stale town_safety/shouts/shout_queue/dialogue_speed (fail on baseline too; listed in AGENTS.md).
   **Town fire MERGED** (`1782220`, producer asked to test it): scorch flames -> char, buildings/collision intact; play build
-  and test pack installed; awaiting the producer's F8 playtest verdict (revert the merge if rejected). Upstab and stale tests MERGED (`cdc1a57`, `203eff8`; BREATH_UP moved $6469 -> $646B
-  at merge, since $6469 is SHOUT_CYCLE). Full suite green, no stale tests left. Lava Link hurt sound `1583644`. Codex checkpoints DONE,
-  unmerged: `feat/checkpoint-sets` @ `8e559be` (43 states; Codex could not view PNGs, so I reviewed the sheets). Issues: GP low tunnel,
-  Before Dark Link and Movement low ceiling are all room $36 (duplicates); "GP elevator" and "P1 elevator shaft" show no elevator;
-  no bottomless pit; Endgame has 7 and Movement 6 states. Producer: "fix and then install". Codex `barba-checkpoint-fixes` RUNNING (18:54; `logs/barba_checkpoint_fixes.out`,
-  brief `briefs/barba-checkpoint-fixes-codex.md`, same worktree). Then: review sheets, merge, rebuild, install pack. Then: looking-up head art in chat; update the 4 stale tests. Battle flicker still open. Producer decisions 2026-11-14: Lava Link stays Barba-style, beams always, no weakening, difficulty
-  not a goal; try a shield mechanic; Link hurt sound for the boss only; flicker and polish later. Opener: "Barba: checkpoint sets: merge or fix duplicates."
+  and test pack installed; producer playtested F8 2026-11-14: "looks great; keep". Upstab and stale tests MERGED (`cdc1a57`, `203eff8`; BREATH_UP moved $6469 -> $646B
+  at merge, since $6469 is SHOUT_CYCLE). Full suite green, no stale tests left. Lava Link hurt sound `1583644`. Checkpoint sets MERGED to main and PUSHED
+  (`2df36c5`; fixes `836b8c4` reviewed by sheet: elevators, tunnels OK; no lethal pit exists, P6 drop-shaft edge instead; 44 states).
+  main pushed at `2df36c5` (also `f8147a5` normalized TEST-PACK.md CRLF). The producer's checkout is on ANOTHER agent's branch
+  `feat/look-up-head` (`02ad64f` looking-up head art, `6abf789` Lava Link shield experiment), not on main and not merged.
+  Install pending the producer's choice: merge main into that branch, or play from `worktrees/019-z2-barba/main-merge/play/`. **`feat/look-up-head`** (main checkout, unmerged, playtest pending): `02ad64f` looking-up head (boss head sheared 2:1, frame 8 for rising Up / airborne Up+B), `6abf789` Lava Link shield experiment (closed head blocks + clanks; vulnerable only timer $30-$5F of hold). Play build + 10-state pack installed from this branch. Producer verdict needed: keep / widen shield window / revert; then merge. Codex's checkpoint pack install will rebuild over it: build from main after merging this branch. Battle flicker still open. Producer decisions 2026-11-14: Lava Link stays Barba-style, beams always, no weakening, difficulty
+  not a goal; try a shield mechanic; Link hurt sound for the boss only; flicker and polish later. Opener: "Barba: install checkpoint sets; review look-up-head branch."
 - **Overnight, hands-free (all detached; they survive chat close):** 22:33 Claude judgment pass on 11 repos (low
   skipped) → ~23:00 Claude solves 002, 014, 017, 019 + Opus HLD for #11 → 23:47 Codex and Claude on 000's dossier →
   ~00:00 Codex solves 007, 008, 012, 015 → Codex builds strain fixes (if 35% or more left). Scheduled: Claude Sonnet

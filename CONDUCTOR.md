@@ -9,20 +9,13 @@ _Last updated: 2026-11-13 21:40 PT_
 **Chat start:** read this file and `inbox --md`, nothing more, until the producer asks for something.
 
 ## Running now
-- **019-z2-barba (2026-11-14 late):** producer branch `feat/stomp-lava-link-downstab` (in the main checkout, not merged to main):
-  `3ce5d3e` checkpoint, `be41fea` upstab design (approved; `docs/UPSTAB-FIRE-PLAN.md`), `71896d0` title fireball SFX -> rare
-  noise roar, `fc4380e` overworld side sprite redraw, `d61dd77` Lava Link 16x16 head + neck stops at lava (5 pieces).
-  **Fixed-bank MERGED** (`0132cf7`, producer OK): FarCall0 bridge, 5 fixed bytes per new cold hook (~474 cycles), fixed free 16.
-  Lava cost measured with new `tests/perf_lava.lua`: avg +290 cycles, peak unchanged 21,677, 0 lag. Suite green except the
-  known stale town_safety/shouts/shout_queue/dialogue_speed (fail on baseline too; listed in AGENTS.md).
-  **Town fire MERGED** (`1782220`, producer asked to test it): scorch flames -> char, buildings/collision intact; play build
-  and test pack installed; producer playtested F8 2026-11-14: "looks great; keep". Upstab and stale tests MERGED (`cdc1a57`, `203eff8`; BREATH_UP moved $6469 -> $646B
-  at merge, since $6469 is SHOUT_CYCLE). Full suite green, no stale tests left. Lava Link hurt sound `1583644`. EVERYTHING ON MAIN, PUSHED (`adb6333`): checkpoint sets (44 states, 5 launchers in `play/`),
-  look-up-head art from another agent (`02ad64f`; its shield experiment was reverted, `bdbc0c6`). The producer's checkout is on `main`
-  with `play/barba.nes` and all sets installed; full suite (30 scenarios + 17 unit tests) green. main-merge worktree removed.
-  Remaining merged-branch worktrees (fixed-bank, upstab, stale-tests, town-fire, checkpoints) can be cleaned up: delete their
-  `roms`/`.tools` junctions with PowerShell `(Get-Item p).Delete()` FIRST, then `git worktree remove`. **`feat/look-up-head`** (main checkout, unmerged): `02ad64f` looking-up head (boss head sheared 2:1, frame 8 for rising Up / airborne Up+B), playtest pending. Lava Link shield tried and DROPPED by the producer (too hard to hit; reverted `bdbc0c6`). Play build + 10-state pack installed from this branch. Merge it to main before Codex's checkpoint pack is rebuilt. Battle flicker still open. Producer decisions 2026-11-14: Lava Link stays Barba-style, beams always, no weakening, difficulty
-  not a goal; try a shield mechanic; Link hurt sound for the boss only; flicker and polish later. Opener: "Barba: whole-game playtest notes."
+- **019-z2-barba (2026-11-15 evening):** all work committed and pushed on `main` (`f19c57f`); full suite (50 scenarios +
+  17 unit tests) green; play build `6b82303c` + test pack regenerated. Fixed overworld forest-burn WRAM overflow
+  (crash after ~110+ burns in one region). Essential villagers stay as-is (producer, 2026-11-15); redesign later.
+  Untested by scenario: flute/hammer use, game over/continue/save; a human end-to-end run is still owed. Reverted an uncommitted 63-update fireball
+  lifetime (stalled fireball-only Rebonack); range is a pending producer decision (STATUS.md). Next-step design threads
+  under discussion: taller Barba where headroom allows, item-raise pose above the 48px head, burnable essential
+  villagers + burn-down sage doors for spells. Opener: "Barba: design <thread>".
 - **Overnight, hands-free (all detached; they survive chat close):** 22:33 Claude judgment pass on 11 repos (low
   skipped) → ~23:00 Claude solves 002, 014, 017, 019 + Opus HLD for #11 → 23:47 Codex and Claude on 000's dossier →
   ~00:00 Codex solves 007, 008, 012, 015 → Codex builds strain fixes (if 35% or more left). Scheduled: Claude Sonnet
